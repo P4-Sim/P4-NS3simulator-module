@@ -65,9 +65,9 @@ int main (int argc, char *argv[])
   LogComponentEnable ("P4NetDevice", LOG_LEVEL_LOGIC);
   
   // init 
-  P4GlobalVar::g_homePath="/home/p4/mmy/src/";
-  P4GlobalVar::g_ns3RootName="ns-allinone-3.26/";
-  P4GlobalVar::g_ns3SrcName="ns-3.26/";
+  P4GlobalVar::g_homePath="/home/p4/";
+  P4GlobalVar::g_ns3RootName="";
+  P4GlobalVar::g_ns3SrcName="p4simulator/";
   P4GlobalVar::g_nfDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"src/p4simulator/test/";
   P4GlobalVar::g_nsType=NS3;
   P4GlobalVar::g_runtimeCliTime=10;

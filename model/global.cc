@@ -16,9 +16,9 @@ namespace ns3 {
   unsigned int P4GlobalVar::g_populateFlowTableWay=LOCAL_CALL;
   std::string P4GlobalVar::g_p4JsonPath="";
 
-  std::string P4GlobalVar::g_homePath="/home/netarchlab/";
-  std::string P4GlobalVar::g_ns3RootName="ns-allinone-3.27/";
-  std::string P4GlobalVar::g_ns3SrcName="ns-3.27/";
+  std::string P4GlobalVar::g_homePath="/home/p4/";
+  std::string P4GlobalVar::g_ns3RootName="/";
+  std::string P4GlobalVar::g_ns3SrcName="p4simulator/";
   std::string P4GlobalVar::g_nfDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"src/p4simulator/test/";
   std::string P4GlobalVar::g_topoDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"src/p4simulator/topo/";
   std::string P4GlobalVar::g_flowTableDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"src/p4simulator/flowtable/";
