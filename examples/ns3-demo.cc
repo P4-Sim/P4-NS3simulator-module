@@ -105,7 +105,7 @@ int main (int argc, char *argv[])
       P4GlobalVar::g_networkFunc=SILKROAD;
       P4GlobalVar::SetP4MatchTypeJsonPath();
       P4GlobalVar::g_flowTablePath=P4GlobalVar::g_nfDir+"silkroad/command.txt";
-	  P4GlobalVar::g_viewFlowTablePath=P4GlobalVar::g_nfDir+"silkroad/view.txt";
+	    P4GlobalVar::g_viewFlowTablePath=P4GlobalVar::g_nfDir+"silkroad/view.txt";
       P4Helper bridge;
       bridge.Install (switchNode, switchDevices);
 

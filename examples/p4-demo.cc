@@ -25,9 +25,9 @@
  *          |________________________|
  *            |      |      |      |  
  *           h0(dst) h1     h2     h3(src)
- *      ip:10.1.1.1              10.1.1.4
- *     mac:00:00:00:00:00:01     00:00:00:00:00:07
- *application:UdpEchoServer      UdpEchoClient
+ *      ip:10.1.1.1                10.1.1.4
+ *      mac:00:00:00:00:00:01      00:00:00:00:00:07
+ *      UdpEchoServer              UdpEchoClient
  * simulate start:h3 send ArpHeader packet whose dstIp is 10.1.1.1 to switch.
  *
 */
@@ -83,13 +83,13 @@ int main (int argc, char *argv[])
   CommandLine cmd;
   cmd.AddValue("time", "Waiting time for Runtime CLI Operations", P4GlobalVar::g_runtimeCliTime);
   cmd.Parse (argc, argv);
-  //NS_LOG_INFO ("Create nodes.");
+  NS_LOG_INFO ("Create nodes.");
   NodeContainer terminals;
   terminals.Create (4);
   NodeContainer csmaSwitch;
   csmaSwitch.Create (1);
 
-  //NS_LOG_INFO ("Build Topology");
+  NS_LOG_INFO ("Build Topology");
     
   CsmaHelper csma;
   csma.SetChannelAttribute ("DataRate", DataRateValue (5000000));
@@ -111,7 +111,7 @@ int main (int argc, char *argv[])
       P4GlobalVar::g_networkFunc=SILKROAD;
       P4GlobalVar::SetP4MatchTypeJsonPath();
       P4GlobalVar::g_flowTablePath=P4GlobalVar::g_nfDir+"silkroad/command.txt";
-	  P4GlobalVar::g_viewFlowTablePath=P4GlobalVar::g_nfDir+"silkroad/view.txt";
+	    P4GlobalVar::g_viewFlowTablePath=P4GlobalVar::g_nfDir+"silkroad/view.txt";
       P4Helper bridge;
       bridge.Install (switchNode, switchDevices);
 
@@ -128,7 +128,7 @@ int main (int argc, char *argv[])
   internet.Install (terminals);
 
   // Assign IP addresses.
-  //NS_LOG_INFO ("Assign IP Addresses.");
+  NS_LOG_INFO ("Assign IP Addresses.");
   Ipv4AddressHelper ipv4;
   ipv4.SetBase ("10.1.1.0", "255.255.255.0");
   Ipv4InterfaceContainer addresses = ipv4.Assign (terminalDevices);
@@ -165,7 +165,9 @@ int main (int argc, char *argv[])
   std::cout << "=========== Show  Switch Received Packet Num ===========" << std::endl;
   std::cout << "Switch " << 0 << ":";
   ShowSwitchInfos(csmaSwitch.Get(0));
+  std::cout << std::endl;
   std::cout << "============= Show Host Received Packet Num ==============" << std::endl;
+  
   for(int i=0;i<4;i++)
   {
     std::cout<<"Host "<<i<<":";
