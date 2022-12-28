@@ -13,5 +13,5 @@ def build(bld):
     #obj0.source=['single-switch.cc']
     #obj0.source=['ns3-large-scale.cc']
     #obj0.source=['p4simulator-large-scale.cc']
-    obj1 = bld.create_ns3_program('p4-test', ['p4simulator', 'csma', 'internet', 'applications', 'internet-apps'])
-    obj1.source = ['p4-test.cc']
+    #obj1 = bld.create_ns3_program('p4-test', ['p4simulator', 'csma', 'internet', 'applications', 'internet-apps'])
+    #obj1.source = ['p4-test.cc']

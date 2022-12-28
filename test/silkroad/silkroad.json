@@ -1,1048 +1,1203 @@
 {
-    "__meta__": {
-        "version": [
-            2,
-            5
-        ],
-        "compiler": "https://github.com/p4lang/p4c-bm"
+  "header_types" : [
+    {
+      "name" : "scalars_0",
+      "id" : 0,
+      "fields" : [
+        ["userMetadata._routing_metadata_nhop_ipv40", 32, false]
+      ]
     },
-    "header_types": [
+    {
+      "name" : "standard_metadata",
+      "id" : 1,
+      "fields" : [
+        ["ingress_port", 9, false],
+        ["egress_spec", 9, false],
+        ["egress_port", 9, false],
+        ["instance_type", 32, false],
+        ["packet_length", 32, false],
+        ["enq_timestamp", 32, false],
+        ["enq_qdepth", 19, false],
+        ["deq_timedelta", 32, false],
+        ["deq_qdepth", 19, false],
+        ["ingress_global_timestamp", 48, false],
+        ["egress_global_timestamp", 48, false],
+        ["mcast_grp", 16, false],
+        ["egress_rid", 16, false],
+        ["checksum_error", 1, false],
+        ["parser_error", 32, false],
+        ["priority", 3, false],
+        ["_padding", 3, false]
+      ]
+    },
+    {
+      "name" : "arp_t",
+      "id" : 2,
+      "fields" : [
+        ["hw_type", 16, false],
+        ["protocol_type", 16, false],
+        ["hw_size", 8, false],
+        ["protocol_size", 8, false],
+        ["opcode", 16, false],
+        ["srcMac", 48, false],
+        ["srcIp", 32, false],
+        ["dstMac", 48, false],
+        ["dstIp", 32, false]
+      ]
+    },
+    {
+      "name" : "ethernet_t",
+      "id" : 3,
+      "fields" : [
+        ["dstAddr", 48, false],
+        ["srcAddr", 48, false],
+        ["etherType", 16, false]
+      ]
+    },
+    {
+      "name" : "ipv4_t",
+      "id" : 4,
+      "fields" : [
+        ["version", 4, false],
+        ["ihl", 4, false],
+        ["diffserv", 8, false],
+        ["totalLen", 16, false],
+        ["identification", 16, false],
+        ["flags", 3, false],
+        ["fragOffset", 13, false],
+        ["ttl", 8, false],
+        ["protocol", 8, false],
+        ["hdrChecksum", 16, false],
+        ["srcAddr", 32, false],
+        ["dstAddr", 32, false]
+      ]
+    },
+    {
+      "name" : "tcp_t",
+      "id" : 5,
+      "fields" : [
+        ["srcPort", 16, false],
+        ["dstPort", 16, false],
+        ["seqNo", 32, false],
+        ["ackNo", 32, false],
+        ["dataOffset", 4, false],
+        ["res", 3, false],
+        ["ecn", 3, false],
+        ["ctrl", 6, false],
+        ["window", 16, false],
+        ["checksum", 16, false],
+        ["urgentPtr", 16, false]
+      ]
+    },
+    {
+      "name" : "udp_t",
+      "id" : 6,
+      "fields" : [
+        ["srcPort", 16, false],
+        ["dstPort", 16, false],
+        ["len", 16, false],
+        ["checksum", 16, false]
+      ]
+    }
+  ],
+  "headers" : [
+    {
+      "name" : "scalars",
+      "id" : 0,
+      "header_type" : "scalars_0",
+      "metadata" : true,
+      "pi_omit" : true
+    },
+    {
+      "name" : "standard_metadata",
+      "id" : 1,
+      "header_type" : "standard_metadata",
+      "metadata" : true,
+      "pi_omit" : true
+    },
+    {
+      "name" : "arp",
+      "id" : 2,
+      "header_type" : "arp_t",
+      "metadata" : false,
+      "pi_omit" : true
+    },
+    {
+      "name" : "ethernet",
+      "id" : 3,
+      "header_type" : "ethernet_t",
+      "metadata" : false,
+      "pi_omit" : true
+    },
+    {
+      "name" : "ipv4",
+      "id" : 4,
+      "header_type" : "ipv4_t",
+      "metadata" : false,
+      "pi_omit" : true
+    },
+    {
+      "name" : "tcp",
+      "id" : 5,
+      "header_type" : "tcp_t",
+      "metadata" : false,
+      "pi_omit" : true
+    },
+    {
+      "name" : "udp",
+      "id" : 6,
+      "header_type" : "udp_t",
+      "metadata" : false,
+      "pi_omit" : true
+    }
+  ],
+  "header_stacks" : [],
+  "header_union_types" : [],
+  "header_unions" : [],
+  "header_union_stacks" : [],
+  "field_lists" : [],
+  "errors" : [
+    ["NoError", 0],
+    ["PacketTooShort", 1],
+    ["NoMatch", 2],
+    ["StackOutOfBounds", 3],
+    ["HeaderTooShort", 4],
+    ["ParserTimeout", 5],
+    ["ParserInvalidArgument", 6]
+  ],
+  "enums" : [],
+  "parsers" : [
+    {
+      "name" : "parser",
+      "id" : 0,
+      "init_state" : "start",
+      "parse_states" : [
         {
-            "name": "standard_metadata_t",
-            "id": 0,
-            "fields": [
-                [
-                    "ingress_port",
-                    9
-                ],
-                [
-                    "packet_length",
-                    32
-                ],
-                [
-                    "egress_spec",
-                    9
-                ],
-                [
-                    "egress_port",
-                    9
-                ],
-                [
-                    "egress_instance",
-                    32
-                ],
-                [
-                    "instance_type",
-                    32
-                ],
-                [
-                    "clone_spec",
-                    32
-                ],
-                [
-                    "_padding",
-                    5
-                ]
-            ],
-            "length_exp": null,
-            "max_length": null
+          "name" : "parse_arp",
+          "id" : 0,
+          "parser_ops" : [
+            {
+              "parameters" : [
+                {
+                  "type" : "regular",
+                  "value" : "arp"
+                }
+              ],
+              "op" : "extract"
+            }
+          ],
+          "transitions" : [
+            {
+              "type" : "default",
+              "value" : null,
+              "mask" : null,
+              "next_state" : null
+            }
+          ],
+          "transition_key" : []
         },
         {
-            "name": "ethernet_t",
-            "id": 1,
-            "fields": [
-                [
-                    "dstAddr",
-                    48
-                ],
-                [
-                    "srcAddr",
-                    48
-                ],
-                [
-                    "etherType",
-                    16
-                ]
-            ],
-            "length_exp": null,
-            "max_length": null
+          "name" : "parse_ethernet",
+          "id" : 1,
+          "parser_ops" : [
+            {
+              "parameters" : [
+                {
+                  "type" : "regular",
+                  "value" : "ethernet"
+                }
+              ],
+              "op" : "extract"
+            }
+          ],
+          "transitions" : [
+            {
+              "type" : "hexstr",
+              "value" : "0x0800",
+              "mask" : null,
+              "next_state" : "parse_ipv4"
+            },
+            {
+              "type" : "hexstr",
+              "value" : "0x0806",
+              "mask" : null,
+              "next_state" : "parse_arp"
+            },
+            {
+              "type" : "default",
+              "value" : null,
+              "mask" : null,
+              "next_state" : null
+            }
+          ],
+          "transition_key" : [
+            {
+              "type" : "field",
+              "value" : ["ethernet", "etherType"]
+            }
+          ]
         },
         {
-            "name": "ipv4_t",
-            "id": 2,
-            "fields": [
-                [
-                    "version",
-                    4
-                ],
-                [
-                    "ihl",
-                    4
-                ],
-                [
-                    "diffserv",
-                    8
-                ],
-                [
-                    "totalLen",
-                    16
-                ],
-                [
-                    "identification",
-                    16
-                ],
-                [
-                    "flags",
-                    3
-                ],
-                [
-                    "fragOffset",
-                    13
-                ],
-                [
-                    "ttl",
-                    8
-                ],
-                [
-                    "protocol",
-                    8
-                ],
-                [
-                    "hdrChecksum",
-                    16
-                ],
-                [
-                    "srcAddr",
-                    32
-                ],
-                [
-                    "dstAddr",
-                    32
-                ]
-            ],
-            "length_exp": null,
-            "max_length": null
+          "name" : "parse_ipv4",
+          "id" : 2,
+          "parser_ops" : [
+            {
+              "parameters" : [
+                {
+                  "type" : "regular",
+                  "value" : "ipv4"
+                }
+              ],
+              "op" : "extract"
+            }
+          ],
+          "transitions" : [
+            {
+              "type" : "hexstr",
+              "value" : "0x06",
+              "mask" : null,
+              "next_state" : "tcp_parser"
+            },
+            {
+              "type" : "hexstr",
+              "value" : "0x11",
+              "mask" : null,
+              "next_state" : "udp_parser"
+            },
+            {
+              "type" : "default",
+              "value" : null,
+              "mask" : null,
+              "next_state" : null
+            }
+          ],
+          "transition_key" : [
+            {
+              "type" : "field",
+              "value" : ["ipv4", "protocol"]
+            }
+          ]
         },
         {
-            "name": "arp_t",
-            "id": 3,
-            "fields": [
-                [
-                    "hw_type",
-                    16
-                ],
-                [
-                    "protocol_type",
-                    16
-                ],
-                [
-                    "hw_size",
-                    8
-                ],
-                [
-                    "protocol_size",
-                    8
-                ],
-                [
-                    "opcode",
-                    16
-                ],
-                [
-                    "srcMac",
-                    48
-                ],
-                [
-                    "srcIp",
-                    32
-                ],
-                [
-                    "dstMac",
-                    48
-                ],
-                [
-                    "dstIp",
-                    32
-                ]
-            ],
-            "length_exp": null,
-            "max_length": null
+          "name" : "start",
+          "id" : 3,
+          "parser_ops" : [],
+          "transitions" : [
+            {
+              "type" : "default",
+              "value" : null,
+              "mask" : null,
+              "next_state" : "parse_ethernet"
+            }
+          ],
+          "transition_key" : []
         },
         {
-            "name": "tcp_t",
-            "id": 4,
-            "fields": [
-                [
-                    "srcPort",
-                    16
-                ],
-                [
-                    "dstPort",
-                    16
-                ],
-                [
-                    "seqNo",
-                    32
-                ],
-                [
-                    "ackNo",
-                    32
-                ],
-                [
-                    "dataOffset",
-                    4
-                ],
-                [
-                    "res",
-                    3
-                ],
-                [
-                    "ecn",
-                    3
-                ],
-                [
-                    "ctrl",
-                    6
-                ],
-                [
-                    "window",
-                    16
-                ],
-                [
-                    "checksum",
-                    16
-                ],
-                [
-                    "urgentPtr",
-                    16
-                ]
-            ],
-            "length_exp": null,
-            "max_length": null
+          "name" : "tcp_parser",
+          "id" : 4,
+          "parser_ops" : [
+            {
+              "parameters" : [
+                {
+                  "type" : "regular",
+                  "value" : "tcp"
+                }
+              ],
+              "op" : "extract"
+            }
+          ],
+          "transitions" : [
+            {
+              "type" : "default",
+              "value" : null,
+              "mask" : null,
+              "next_state" : null
+            }
+          ],
+          "transition_key" : []
         },
         {
-            "name": "udp_t",
-            "id": 5,
-            "fields": [
-                [
-                    "srcPort",
-                    16
-                ],
-                [
-                    "dstPort",
-                    16
-                ],
-                [
-                    "len",
-                    16
-                ],
-                [
-                    "checksum",
-                    16
-                ]
-            ],
-            "length_exp": null,
-            "max_length": null
-        },
-        {
-            "name": "routing_metadata_t",
-            "id": 6,
-            "fields": [
-                [
-                    "nhop_ipv4",
-                    32
-                ]
-            ],
-            "length_exp": null,
-            "max_length": null
+          "name" : "udp_parser",
+          "id" : 5,
+          "parser_ops" : [
+            {
+              "parameters" : [
+                {
+                  "type" : "regular",
+                  "value" : "udp"
+                }
+              ],
+              "op" : "extract"
+            }
+          ],
+          "transitions" : [
+            {
+              "type" : "default",
+              "value" : null,
+              "mask" : null,
+              "next_state" : null
+            }
+          ],
+          "transition_key" : []
         }
-    ],
-    "headers": [
+      ]
+    }
+  ],
+  "parse_vsets" : [],
+  "deparsers" : [
+    {
+      "name" : "deparser",
+      "id" : 0,
+      "order" : ["ethernet", "arp", "ipv4", "udp", "tcp"],
+      "primitives" : []
+    }
+  ],
+  "meter_arrays" : [],
+  "counter_arrays" : [],
+  "register_arrays" : [],
+  "calculations" : [],
+  "learn_lists" : [],
+  "actions" : [
+    {
+      "name" : "NoAction",
+      "id" : 0,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "NoAction",
+      "id" : 1,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "NoAction",
+      "id" : 2,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "NoAction",
+      "id" : 3,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "NoAction",
+      "id" : 4,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "NoAction",
+      "id" : 5,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "set_arp_nhop",
+      "id" : 6,
+      "runtime_data" : [
         {
-            "name": "standard_metadata",
-            "id": 0,
-            "header_type": "standard_metadata_t",
-            "metadata": true
-        },
-        {
-            "name": "ethernet",
-            "id": 1,
-            "header_type": "ethernet_t",
-            "metadata": false
-        },
-        {
-            "name": "ipv4",
-            "id": 2,
-            "header_type": "ipv4_t",
-            "metadata": false
-        },
-        {
-            "name": "arp",
-            "id": 3,
-            "header_type": "arp_t",
-            "metadata": false
-        },
-        {
-            "name": "tcp",
-            "id": 4,
-            "header_type": "tcp_t",
-            "metadata": false
-        },
-        {
-            "name": "udp",
-            "id": 5,
-            "header_type": "udp_t",
-            "metadata": false
-        },
-        {
-            "name": "routing_metadata",
-            "id": 6,
-            "header_type": "routing_metadata_t",
-            "metadata": true
+          "name" : "dip",
+          "bitwidth" : 32
         }
-    ],
-    "header_stacks": [],
-    "parsers": [
+      ],
+      "primitives" : [
         {
-            "name": "parser",
-            "id": 0,
-            "init_state": "start",
-            "parse_states": [
-                {
-                    "name": "start",
-                    "id": 0,
-                    "parser_ops": [],
-                    "transition_key": [],
-                    "transitions": [
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": "parse_ethernet"
-                        }
-                    ]
-                },
-                {
-                    "name": "parse_ethernet",
-                    "id": 1,
-                    "parser_ops": [
-                        {
-                            "op": "extract",
-                            "parameters": [
-                                {
-                                    "type": "regular",
-                                    "value": "ethernet"
-                                }
-                            ]
-                        }
-                    ],
-                    "transition_key": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "ethernet",
-                                "etherType"
-                            ]
-                        }
-                    ],
-                    "transitions": [
-                        {
-                            "type": "hexstr",
-                            "value": "0x0800",
-                            "mask": null,
-                            "next_state": "parse_ipv4"
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "0x0806",
-                            "mask": null,
-                            "next_state": "parse_arp"
-                        },
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": null
-                        }
-                    ]
-                },
-                {
-                    "name": "parse_ipv4",
-                    "id": 2,
-                    "parser_ops": [
-                        {
-                            "op": "extract",
-                            "parameters": [
-                                {
-                                    "type": "regular",
-                                    "value": "ipv4"
-                                }
-                            ]
-                        }
-                    ],
-                    "transition_key": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "ipv4",
-                                "protocol"
-                            ]
-                        }
-                    ],
-                    "transitions": [
-                        {
-                            "type": "hexstr",
-                            "value": "0x06",
-                            "mask": null,
-                            "next_state": "tcp_parser"
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "0x11",
-                            "mask": null,
-                            "next_state": "udp_parser"
-                        },
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": null
-                        }
-                    ]
-                },
-                {
-                    "name": "tcp_parser",
-                    "id": 3,
-                    "parser_ops": [
-                        {
-                            "op": "extract",
-                            "parameters": [
-                                {
-                                    "type": "regular",
-                                    "value": "tcp"
-                                }
-                            ]
-                        }
-                    ],
-                    "transition_key": [],
-                    "transitions": [
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": null
-                        }
-                    ]
-                },
-                {
-                    "name": "udp_parser",
-                    "id": 4,
-                    "parser_ops": [
-                        {
-                            "op": "extract",
-                            "parameters": [
-                                {
-                                    "type": "regular",
-                                    "value": "udp"
-                                }
-                            ]
-                        }
-                    ],
-                    "transition_key": [],
-                    "transitions": [
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": null
-                        }
-                    ]
-                },
-                {
-                    "name": "parse_arp",
-                    "id": 5,
-                    "parser_ops": [
-                        {
-                            "op": "extract",
-                            "parameters": [
-                                {
-                                    "type": "regular",
-                                    "value": "arp"
-                                }
-                            ]
-                        }
-                    ],
-                    "transition_key": [],
-                    "transitions": [
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": null
-                        }
-                    ]
-                }
-            ]
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["arp", "dstIp"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 142,
+            "column" : 20,
+            "source_fragment" : "dip) { ..."
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "userMetadata._routing_metadata_nhop_ipv40"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 142,
+            "column" : 20,
+            "source_fragment" : "dip) { ..."
+          }
         }
-    ],
-    "parse_vsets": [],
-    "deparsers": [
+      ]
+    },
+    {
+      "name" : "_drop",
+      "id" : 7,
+      "runtime_data" : [],
+      "primitives" : [
         {
-            "name": "deparser",
-            "id": 0,
-            "order": [
-                "ethernet",
-                "arp",
-                "ipv4",
-                "udp",
-                "tcp"
-            ]
+          "op" : "mark_to_drop",
+          "parameters" : [
+            {
+              "type" : "header",
+              "value" : "standard_metadata"
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 156,
+            "column" : 4,
+            "source_fragment" : "drop()"
+          }
         }
-    ],
-    "meter_arrays": [],
-    "actions": [
+      ]
+    },
+    {
+      "name" : "_drop",
+      "id" : 8,
+      "runtime_data" : [],
+      "primitives" : [
         {
-            "name": "set_port",
-            "id": 0,
-            "runtime_data": [
-                {
-                    "name": "port",
-                    "bitwidth": 9
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "standard_metadata",
-                                "egress_spec"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "modify_dip",
-            "id": 1,
-            "runtime_data": [
-                {
-                    "name": "dip",
-                    "bitwidth": 32
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "ipv4",
-                                "dstAddr"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                },
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "routing_metadata",
-                                "nhop_ipv4"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                },
-                {
-                    "op": "add_to_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "ipv4",
-                                "ttl"
-                            ]
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "-0x1"
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "modify_ipv4_vip",
-            "id": 2,
-            "runtime_data": [
-                {
-                    "name": "vip",
-                    "bitwidth": 32
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "ipv4",
-                                "srcAddr"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "modify_arp_vip",
-            "id": 3,
-            "runtime_data": [
-                {
-                    "name": "vip",
-                    "bitwidth": 32
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "arp",
-                                "srcIp"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "set_arp_nhop",
-            "id": 4,
-            "runtime_data": [
-                {
-                    "name": "dip",
-                    "bitwidth": 32
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "arp",
-                                "dstIp"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                },
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "routing_metadata",
-                                "nhop_ipv4"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "noop",
-            "id": 5,
-            "runtime_data": [],
-            "primitives": [
-                {
-                    "op": "no_op",
-                    "parameters": []
-                }
-            ]
-        },
-        {
-            "name": "_drop",
-            "id": 6,
-            "runtime_data": [],
-            "primitives": [
-                {
-                    "op": "drop",
-                    "parameters": []
-                }
-            ]
+          "op" : "mark_to_drop",
+          "parameters" : [
+            {
+              "type" : "header",
+              "value" : "standard_metadata"
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 156,
+            "column" : 4,
+            "source_fragment" : "drop()"
+          }
         }
-    ],
-    "pipelines": [
+      ]
+    },
+    {
+      "name" : "set_port",
+      "id" : 9,
+      "runtime_data" : [
         {
-            "name": "ingress",
-            "id": 0,
-            "init_table": "_condition_0",
-            "tables": [
-                {
-                    "name": "vipt_with_tcp",
-                    "id": 0,
-                    "match_type": "exact",
-                    "type": "simple",
-                    "max_size": 16384,
-                    "with_counters": false,
-                    "direct_meters": null,
-                    "support_timeout": false,
-                    "key": [
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "ipv4",
-                                "dstAddr"
-                            ],
-                            "mask": null
-                        },
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "ipv4",
-                                "protocol"
-                            ],
-                            "mask": null
-                        },
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "tcp",
-                                "dstPort"
-                            ],
-                            "mask": null
-                        }
-                    ],
-                    "actions": [
-                        "modify_dip",
-                        "noop"
-                    ],
-                    "next_tables": {
-                        "modify_dip": "set_ipv4_srcip",
-                        "noop": "set_ipv4_srcip"
-                    },
-                    "base_default_next": "set_ipv4_srcip"
-                },
-                {
-                    "name": "vipt_with_udp",
-                    "id": 1,
-                    "match_type": "exact",
-                    "type": "simple",
-                    "max_size": 16384,
-                    "with_counters": false,
-                    "direct_meters": null,
-                    "support_timeout": false,
-                    "key": [
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "ipv4",
-                                "dstAddr"
-                            ],
-                            "mask": null
-                        },
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "ipv4",
-                                "protocol"
-                            ],
-                            "mask": null
-                        },
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "udp",
-                                "dstPort"
-                            ],
-                            "mask": null
-                        }
-                    ],
-                    "actions": [
-                        "modify_dip",
-                        "noop"
-                    ],
-                    "next_tables": {
-                        "modify_dip": "set_ipv4_srcip",
-                        "noop": "set_ipv4_srcip"
-                    },
-                    "base_default_next": "set_ipv4_srcip"
-                },
-                {
-                    "name": "arp_nhop",
-                    "id": 2,
-                    "match_type": "exact",
-                    "type": "simple",
-                    "max_size": 16384,
-                    "with_counters": false,
-                    "direct_meters": null,
-                    "support_timeout": false,
-                    "key": [
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "arp",
-                                "dstIp"
-                            ],
-                            "mask": null
-                        }
-                    ],
-                    "actions": [
-                        "set_arp_nhop",
-                        "_drop"
-                    ],
-                    "next_tables": {
-                        "set_arp_nhop": "set_arp_srcip",
-                        "_drop": "set_arp_srcip"
-                    },
-                    "base_default_next": "set_arp_srcip"
-                },
-                {
-                    "name": "forward_table",
-                    "id": 3,
-                    "match_type": "exact",
-                    "type": "simple",
-                    "max_size": 16384,
-                    "with_counters": false,
-                    "direct_meters": null,
-                    "support_timeout": false,
-                    "key": [
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "routing_metadata",
-                                "nhop_ipv4"
-                            ],
-                            "mask": null
-                        }
-                    ],
-                    "actions": [
-                        "set_port",
-                        "_drop"
-                    ],
-                    "next_tables": {
-                        "set_port": null,
-                        "_drop": null
-                    },
-                    "base_default_next": null
-                },
-                {
-                    "name": "set_ipv4_srcip",
-                    "id": 4,
-                    "match_type": "exact",
-                    "type": "simple",
-                    "max_size": 16384,
-                    "with_counters": false,
-                    "direct_meters": null,
-                    "support_timeout": false,
-                    "key": [
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "ipv4",
-                                "srcAddr"
-                            ],
-                            "mask": null
-                        }
-                    ],
-                    "actions": [
-                        "modify_ipv4_vip",
-                        "noop"
-                    ],
-                    "next_tables": {
-                        "modify_ipv4_vip": "forward_table",
-                        "noop": "forward_table"
-                    },
-                    "base_default_next": "forward_table"
-                },
-                {
-                    "name": "set_arp_srcip",
-                    "id": 5,
-                    "match_type": "exact",
-                    "type": "simple",
-                    "max_size": 16384,
-                    "with_counters": false,
-                    "direct_meters": null,
-                    "support_timeout": false,
-                    "key": [
-                        {
-                            "match_type": "exact",
-                            "target": [
-                                "arp",
-                                "srcIp"
-                            ],
-                            "mask": null
-                        }
-                    ],
-                    "actions": [
-                        "modify_arp_vip",
-                        "noop"
-                    ],
-                    "next_tables": {
-                        "modify_arp_vip": "forward_table",
-                        "noop": "forward_table"
-                    },
-                    "base_default_next": "forward_table"
-                }
-            ],
-            "action_profiles": [],
-            "conditionals": [
-                {
-                    "name": "_condition_0",
-                    "id": 0,
-                    "expression": {
-                        "type": "expression",
-                        "value": {
-                            "op": "valid",
-                            "left": null,
-                            "right": {
-                                "type": "header",
-                                "value": "ipv4"
-                            }
-                        }
-                    },
-                    "true_next": "_condition_1",
-                    "false_next": "_condition_3"
-                },
-                {
-                    "name": "_condition_1",
-                    "id": 1,
-                    "expression": {
-                        "type": "expression",
-                        "value": {
-                            "op": "valid",
-                            "left": null,
-                            "right": {
-                                "type": "header",
-                                "value": "tcp"
-                            }
-                        }
-                    },
-                    "true_next": "vipt_with_tcp",
-                    "false_next": "_condition_2"
-                },
-                {
-                    "name": "_condition_2",
-                    "id": 2,
-                    "expression": {
-                        "type": "expression",
-                        "value": {
-                            "op": "valid",
-                            "left": null,
-                            "right": {
-                                "type": "header",
-                                "value": "udp"
-                            }
-                        }
-                    },
-                    "true_next": "vipt_with_udp",
-                    "false_next": "set_ipv4_srcip"
-                },
-                {
-                    "name": "_condition_3",
-                    "id": 3,
-                    "expression": {
-                        "type": "expression",
-                        "value": {
-                            "op": "valid",
-                            "left": null,
-                            "right": {
-                                "type": "header",
-                                "value": "arp"
-                            }
-                        }
-                    },
-                    "true_next": "arp_nhop",
-                    "false_next": "forward_table"
-                }
-            ]
+          "name" : "port",
+          "bitwidth" : 9
+        }
+      ],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "egress_spec"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 151,
+            "column" : 16,
+            "source_fragment" : "port) { ..."
+          }
+        }
+      ]
+    },
+    {
+      "name" : "modify_arp_vip",
+      "id" : 10,
+      "runtime_data" : [
+        {
+          "name" : "vip",
+          "bitwidth" : 32
+        }
+      ],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["arp", "srcIp"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 138,
+            "column" : 22,
+            "source_fragment" : "vip){ ..."
+          }
+        }
+      ]
+    },
+    {
+      "name" : "noop",
+      "id" : 11,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "noop",
+      "id" : 12,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "noop",
+      "id" : 13,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "noop",
+      "id" : 14,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "modify_ipv4_vip",
+      "id" : 15,
+      "runtime_data" : [
+        {
+          "name" : "vip",
+          "bitwidth" : 32
+        }
+      ],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["ipv4", "srcAddr"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 135,
+            "column" : 23,
+            "source_fragment" : "vip){ ..."
+          }
+        }
+      ]
+    },
+    {
+      "name" : "modify_dip",
+      "id" : 16,
+      "runtime_data" : [
+        {
+          "name" : "dip",
+          "bitwidth" : 32
+        }
+      ],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["ipv4", "dstAddr"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 130,
+            "column" : 18,
+            "source_fragment" : "dip){ ..."
+          }
         },
         {
-            "name": "egress",
-            "id": 1,
-            "init_table": null,
-            "tables": [],
-            "action_profiles": [],
-            "conditionals": []
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "userMetadata._routing_metadata_nhop_ipv40"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 130,
+            "column" : 18,
+            "source_fragment" : "dip){ ..."
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["ipv4", "ttl"]
+            },
+            {
+              "type" : "expression",
+              "value" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "&",
+                  "left" : {
+                    "type" : "expression",
+                    "value" : {
+                      "op" : "+",
+                      "left" : {
+                        "type" : "field",
+                        "value" : ["ipv4", "ttl"]
+                      },
+                      "right" : {
+                        "type" : "hexstr",
+                        "value" : "0xff"
+                      }
+                    }
+                  },
+                  "right" : {
+                    "type" : "hexstr",
+                    "value" : "0xff"
+                  }
+                }
+              }
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 133,
+            "column" : 1,
+            "source_fragment" : "add_to_field(ipv4.ttl, -1)"
+          }
         }
+      ]
+    },
+    {
+      "name" : "modify_dip",
+      "id" : 17,
+      "runtime_data" : [
+        {
+          "name" : "dip",
+          "bitwidth" : 32
+        }
+      ],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["ipv4", "dstAddr"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 130,
+            "column" : 18,
+            "source_fragment" : "dip){ ..."
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "userMetadata._routing_metadata_nhop_ipv40"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 130,
+            "column" : 18,
+            "source_fragment" : "dip){ ..."
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["ipv4", "ttl"]
+            },
+            {
+              "type" : "expression",
+              "value" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "&",
+                  "left" : {
+                    "type" : "expression",
+                    "value" : {
+                      "op" : "+",
+                      "left" : {
+                        "type" : "field",
+                        "value" : ["ipv4", "ttl"]
+                      },
+                      "right" : {
+                        "type" : "hexstr",
+                        "value" : "0xff"
+                      }
+                    }
+                  },
+                  "right" : {
+                    "type" : "hexstr",
+                    "value" : "0xff"
+                  }
+                }
+              }
+            }
+          ],
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 133,
+            "column" : 1,
+            "source_fragment" : "add_to_field(ipv4.ttl, -1)"
+          }
+        }
+      ]
+    }
+  ],
+  "pipelines" : [
+    {
+      "name" : "ingress",
+      "id" : 0,
+      "init_table" : "node_2",
+      "tables" : [
+        {
+          "name" : "vipt_with_tcp",
+          "id" : 0,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 159,
+            "column" : 0,
+            "source_fragment" : "table vipt_with_tcp{ ..."
+          },
+          "key" : [
+            {
+              "match_type" : "exact",
+              "name" : "ipv4.dstAddr",
+              "target" : ["ipv4", "dstAddr"],
+              "mask" : null
+            },
+            {
+              "match_type" : "exact",
+              "name" : "ipv4.protocol",
+              "target" : ["ipv4", "protocol"],
+              "mask" : null
+            },
+            {
+              "match_type" : "exact",
+              "name" : "tcp.dstPort",
+              "target" : ["tcp", "dstPort"],
+              "mask" : null
+            }
+          ],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [16, 13, 4],
+          "actions" : ["modify_dip", "noop", "NoAction"],
+          "base_default_next" : "set_ipv4_srcip",
+          "next_tables" : {
+            "modify_dip" : "set_ipv4_srcip",
+            "noop" : "set_ipv4_srcip",
+            "NoAction" : "set_ipv4_srcip"
+          },
+          "default_entry" : {
+            "action_id" : 4,
+            "action_const" : false,
+            "action_data" : [],
+            "action_entry_const" : false
+          }
+        },
+        {
+          "name" : "vipt_with_udp",
+          "id" : 1,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 171,
+            "column" : 0,
+            "source_fragment" : "table vipt_with_udp{ ..."
+          },
+          "key" : [
+            {
+              "match_type" : "exact",
+              "name" : "ipv4.dstAddr",
+              "target" : ["ipv4", "dstAddr"],
+              "mask" : null
+            },
+            {
+              "match_type" : "exact",
+              "name" : "ipv4.protocol",
+              "target" : ["ipv4", "protocol"],
+              "mask" : null
+            },
+            {
+              "match_type" : "exact",
+              "name" : "udp.dstPort",
+              "target" : ["udp", "dstPort"],
+              "mask" : null
+            }
+          ],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [17, 14, 5],
+          "actions" : ["modify_dip", "noop", "NoAction"],
+          "base_default_next" : "set_ipv4_srcip",
+          "next_tables" : {
+            "modify_dip" : "set_ipv4_srcip",
+            "noop" : "set_ipv4_srcip",
+            "NoAction" : "set_ipv4_srcip"
+          },
+          "default_entry" : {
+            "action_id" : 5,
+            "action_const" : false,
+            "action_data" : [],
+            "action_entry_const" : false
+          }
+        },
+        {
+          "name" : "set_ipv4_srcip",
+          "id" : 2,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 200,
+            "column" : 0,
+            "source_fragment" : "table set_ipv4_srcip{ ..."
+          },
+          "key" : [
+            {
+              "match_type" : "exact",
+              "name" : "ipv4.srcAddr",
+              "target" : ["ipv4", "srcAddr"],
+              "mask" : null
+            }
+          ],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [15, 12, 3],
+          "actions" : ["modify_ipv4_vip", "noop", "NoAction"],
+          "base_default_next" : "forward_table",
+          "next_tables" : {
+            "modify_ipv4_vip" : "forward_table",
+            "noop" : "forward_table",
+            "NoAction" : "forward_table"
+          },
+          "default_entry" : {
+            "action_id" : 3,
+            "action_const" : false,
+            "action_data" : [],
+            "action_entry_const" : false
+          }
+        },
+        {
+          "name" : "arp_nhop",
+          "id" : 3,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 182,
+            "column" : 0,
+            "source_fragment" : "table arp_nhop{ ..."
+          },
+          "key" : [
+            {
+              "match_type" : "exact",
+              "name" : "arp.dstIp",
+              "target" : ["arp", "dstIp"],
+              "mask" : null
+            }
+          ],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [6, 7, 0],
+          "actions" : ["set_arp_nhop", "_drop", "NoAction"],
+          "base_default_next" : "set_arp_srcip",
+          "next_tables" : {
+            "set_arp_nhop" : "set_arp_srcip",
+            "_drop" : "set_arp_srcip",
+            "NoAction" : "set_arp_srcip"
+          },
+          "default_entry" : {
+            "action_id" : 0,
+            "action_const" : false,
+            "action_data" : [],
+            "action_entry_const" : false
+          }
+        },
+        {
+          "name" : "set_arp_srcip",
+          "id" : 4,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 209,
+            "column" : 0,
+            "source_fragment" : "table set_arp_srcip{ ..."
+          },
+          "key" : [
+            {
+              "match_type" : "exact",
+              "name" : "arp.srcIp",
+              "target" : ["arp", "srcIp"],
+              "mask" : null
+            }
+          ],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [10, 11, 2],
+          "actions" : ["modify_arp_vip", "noop", "NoAction"],
+          "base_default_next" : "forward_table",
+          "next_tables" : {
+            "modify_arp_vip" : "forward_table",
+            "noop" : "forward_table",
+            "NoAction" : "forward_table"
+          },
+          "default_entry" : {
+            "action_id" : 2,
+            "action_const" : false,
+            "action_data" : [],
+            "action_entry_const" : false
+          }
+        },
+        {
+          "name" : "forward_table",
+          "id" : 5,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 191,
+            "column" : 0,
+            "source_fragment" : "table forward_table { ..."
+          },
+          "key" : [
+            {
+              "match_type" : "exact",
+              "name" : "routing_metadata.nhop_ipv4",
+              "target" : ["scalars", "userMetadata._routing_metadata_nhop_ipv40"],
+              "mask" : null
+            }
+          ],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [9, 8, 1],
+          "actions" : ["set_port", "_drop", "NoAction"],
+          "base_default_next" : null,
+          "next_tables" : {
+            "set_port" : null,
+            "_drop" : null,
+            "NoAction" : null
+          },
+          "default_entry" : {
+            "action_id" : 1,
+            "action_const" : false,
+            "action_data" : [],
+            "action_entry_const" : false
+          }
+        }
+      ],
+      "action_profiles" : [],
+      "conditionals" : [
+        {
+          "name" : "node_2",
+          "id" : 0,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 220,
+            "column" : 4,
+            "source_fragment" : "valid(ipv4)"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
+                "type" : "field",
+                "value" : ["ipv4", "$valid$"]
+              }
+            }
+          },
+          "true_next" : "node_3",
+          "false_next" : "node_8"
+        },
+        {
+          "name" : "node_3",
+          "id" : 1,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 222,
+            "column" : 5,
+            "source_fragment" : "valid(tcp)"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
+                "type" : "field",
+                "value" : ["tcp", "$valid$"]
+              }
+            }
+          },
+          "true_next" : "vipt_with_tcp",
+          "false_next" : "node_5"
+        },
+        {
+          "name" : "node_5",
+          "id" : 2,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 226,
+            "column" : 10,
+            "source_fragment" : "valid(udp)"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
+                "type" : "field",
+                "value" : ["udp", "$valid$"]
+              }
+            }
+          },
+          "true_next" : "vipt_with_udp",
+          "false_next" : "set_ipv4_srcip"
+        },
+        {
+          "name" : "node_8",
+          "id" : 3,
+          "source_info" : {
+            "filename" : "silkroad.p4",
+            "line" : 232,
+            "column" : 9,
+            "source_fragment" : "valid(arp)"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
+                "type" : "field",
+                "value" : ["arp", "$valid$"]
+              }
+            }
+          },
+          "true_next" : "arp_nhop",
+          "false_next" : "forward_table"
+        }
+      ]
+    },
+    {
+      "name" : "egress",
+      "id" : 1,
+      "init_table" : null,
+      "tables" : [],
+      "action_profiles" : [],
+      "conditionals" : []
+    }
+  ],
+  "checksums" : [],
+  "force_arith" : [],
+  "extern_instances" : [],
+  "field_aliases" : [
+    [
+      "queueing_metadata.enq_timestamp",
+      ["standard_metadata", "enq_timestamp"]
     ],
-    "calculations": [],
-    "checksums": [],
-    "learn_lists": [],
-    "field_lists": [],
-    "counter_arrays": [],
-    "register_arrays": [],
-    "force_arith": [
-        [
-            "standard_metadata",
-            "ingress_port"
-        ],
-        [
-            "standard_metadata",
-            "packet_length"
-        ],
-        [
-            "standard_metadata",
-            "egress_spec"
-        ],
-        [
-            "standard_metadata",
-            "egress_port"
-        ],
-        [
-            "standard_metadata",
-            "egress_instance"
-        ],
-        [
-            "standard_metadata",
-            "instance_type"
-        ],
-        [
-            "standard_metadata",
-            "clone_spec"
-        ],
-        [
-            "standard_metadata",
-            "_padding"
-        ]
+    [
+      "queueing_metadata.enq_qdepth",
+      ["standard_metadata", "enq_qdepth"]
+    ],
+    [
+      "queueing_metadata.deq_timedelta",
+      ["standard_metadata", "deq_timedelta"]
+    ],
+    [
+      "queueing_metadata.deq_qdepth",
+      ["standard_metadata", "deq_qdepth"]
+    ],
+    [
+      "intrinsic_metadata.ingress_global_timestamp",
+      ["standard_metadata", "ingress_global_timestamp"]
+    ],
+    [
+      "intrinsic_metadata.egress_global_timestamp",
+      ["standard_metadata", "egress_global_timestamp"]
+    ],
+    [
+      "intrinsic_metadata.mcast_grp",
+      ["standard_metadata", "mcast_grp"]
+    ],
+    [
+      "intrinsic_metadata.egress_rid",
+      ["standard_metadata", "egress_rid"]
+    ],
+    [
+      "intrinsic_metadata.priority",
+      ["standard_metadata", "priority"]
     ]
+  ],
+  "program" : "silkroad.p4",
+  "__meta__" : {
+    "version" : [2, 23],
+    "compiler" : "https://github.com/p4lang/p4c"
+  }
 }

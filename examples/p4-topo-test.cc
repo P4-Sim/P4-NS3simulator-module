@@ -17,28 +17,36 @@
  * Author: PengKuang <kphf1995cm@outlook.com>
  */
 
-#include <cstring>
-#include <fstream>
+/**
+ * @file p4-topo-test.cc
+ * 
+ * @brief Network arch, send pkts from h0 and h1;
+ *  h0 ---- s3 ---- s1 ---- s0 ---- s2 ---- s4 ---- h1
+ * 
+ */
+
 #include <iostream>
+#include <fstream>
+#include <cstring>
 #include <vector>
 
-#include "ns3/applications-module.h"
-#include "ns3/binary-tree-topo-helper.h"
-#include "ns3/build-flowtable-helper.h"
 #include "ns3/core-module.h"
-#include "ns3/csma-module.h"
-#include "ns3/fattree-topo-helper.h"
-#include "ns3/global.h"
-#include "ns3/helper.h"
-#include "ns3/internet-module.h"
-#include "ns3/ipv4-global-routing-helper.h"
 #include "ns3/network-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/csma-module.h"
+#include "ns3/internet-module.h"
 #include "ns3/p4-helper.h"
-#include "ns3/p4-topology-reader-helper.h"
 #include "ns3/v4ping-helper.h"
-#include <netinet/in.h>
-#include <sys/time.h>
+#include "ns3/ipv4-global-routing-helper.h"
+#include "ns3/binary-tree-topo-helper.h"
+#include "ns3/fattree-topo-helper.h"
 #include <unistd.h>
+#include <sys/time.h>
+#include <netinet/in.h>
+#include "ns3/global.h"
+#include "ns3/p4-topology-reader-helper.h"
+#include "ns3/helper.h"
+#include "ns3/build-flowtable-helper.h"
 
 using namespace ns3;
 
@@ -80,12 +88,12 @@ int main(int argc, char* argv[])
 
     P4GlobalVar::g_nfDir = P4GlobalVar::g_homePath + P4GlobalVar::g_ns3RootName + P4GlobalVar::g_ns3SrcName + "src/p4simulator/test/";
     P4GlobalVar::g_topoDir = P4GlobalVar::g_homePath + P4GlobalVar::g_ns3RootName + P4GlobalVar::g_ns3SrcName + "src/p4simulator/topo/";
-    P4GlobalVar::g_nsType = P4Simulator;
+    P4GlobalVar::g_nsType = P4Simulator; // NS3 / P4Simulator
     P4GlobalVar::g_runtimeCliTime = 10;
     SwitchApi::InitApiMap();
     P4GlobalVar::InitNfStrUintMap();
 
-    int podNum = 2;
+    int podNum = 2; // the host number, default 2
     int toBuild = 1; // whether build flow table entired by program
     int application = 0; // application type (0 onOff Sink, 1 echo test)
 
@@ -96,7 +104,7 @@ int main(int argc, char* argv[])
     // LogComponentEnable("BuildFlowtableHelper",LOG_LEVEL_LOGIC);
     // LogComponentEnable("P4SwitchInterface",LOG_LEVEL_LOGIC);
 
-    // define topo format,path
+    // import the TOPO for the network
     std::string topoFormat("CsmaTopo");
     std::string topoPath = P4GlobalVar::g_topoDir + "csmaTopo.txt";
     NS_LOG_LOGIC(topoPath);
@@ -146,7 +154,7 @@ int main(int argc, char* argv[])
 
     // set default network link parameter
     CsmaHelper csma;
-    csma.SetChannelAttribute("DataRate", StringValue("1000Mbps"));
+    csma.SetChannelAttribute("DataRate", StringValue("100Mbps"));
     csma.SetChannelAttribute("Delay", TimeValue(MilliSeconds(0.01)));
 
     // init network link info
@@ -295,11 +303,10 @@ int main(int argc, char* argv[])
             sinkApp.Stop(Seconds(10.0));
 
             NS_LOG_LOGIC("Create Applications for sender");
-            // Start the send client second
+            // Start the send client
             OnOffHelper onOff("ns3::TcpSocketFactory", dst);
-            onOff.SetAttribute("PacketSize", UintegerValue(1024));
-            onOff.SetAttribute("DataRate", StringValue("10Mbps"));
-            onOff.SetAttribute("MaxBytes", UintegerValue(20));
+            onOff.SetAttribute("PacketSize", UintegerValue(2048));
+            onOff.SetAttribute("DataRate", StringValue("20Mbps"));
 
             ApplicationContainer app0 = onOff.Install(hosts.Get(i));
             app0.Start(Seconds(2.0));

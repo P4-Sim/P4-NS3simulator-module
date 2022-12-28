@@ -60,7 +60,7 @@ struct HostNodeC_t
 
 void ShowSwitchInfos(Ptr<Node> s)
 {
-	//std::cout << "Receive Packet Sum: " << s->m_packetNum << std::endl;
+	std::cout << "Receive Packet Sum: " << s->m_packetNum << std::endl;
 }
 
 int main(int argc, char *argv[])
@@ -342,7 +342,7 @@ int main(int argc, char *argv[])
 	Packet::EnablePrinting();
 
 	unsigned long simulateStart = getTickCount();
-	std::cout << "-----------------Start Simulation-------------------- " << "\n";
+	std::cout << "-----------------Start Simulation-------------------- " << std::endl;;
 	//Simulator::Stop(Seconds(serverStopTime + 1));
 
 	Simulator::Run();
@@ -352,6 +352,7 @@ int main(int argc, char *argv[])
 		std::cout << "Switch " << i << ":";
 		ShowSwitchInfos(csmaSwitch.Get(i));
 	}
+	std::cout << std::endl;
 	std::cout << "============= Show Host Received Packet Num ==============" << std::endl;
 	for (unsigned int i = 0; i < hostNum; i++)
 	{
