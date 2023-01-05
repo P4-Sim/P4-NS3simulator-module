@@ -343,30 +343,13 @@
     "meter_arrays": [],
     "actions": [
         {
-            "name": "set_port",
+            "name": "_drop",
             "id": 0,
-            "runtime_data": [
-                {
-                    "name": "port",
-                    "bitwidth": 9
-                }
-            ],
+            "runtime_data": [],
             "primitives": [
                 {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "standard_metadata",
-                                "egress_spec"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
+                    "op": "drop",
+                    "parameters": []
                 }
             ]
         },
@@ -415,13 +398,30 @@
             ]
         },
         {
-            "name": "_drop",
+            "name": "set_port",
             "id": 2,
-            "runtime_data": [],
+            "runtime_data": [
+                {
+                    "name": "port",
+                    "bitwidth": 9
+                }
+            ],
             "primitives": [
                 {
-                    "op": "drop",
-                    "parameters": []
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "standard_metadata",
+                                "egress_spec"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
                 }
             ]
         },
@@ -465,7 +465,7 @@
                     "id": 0,
                     "match_type": "exact",
                     "type": "simple",
-                    "max_size": 8192,
+                    "max_size": 4096,
                     "with_counters": false,
                     "direct_meters": null,
                     "support_timeout": false,
@@ -494,7 +494,7 @@
                     "id": 1,
                     "match_type": "exact",
                     "type": "simple",
-                    "max_size": 8192,
+                    "max_size": 4096,
                     "with_counters": false,
                     "direct_meters": null,
                     "support_timeout": false,
@@ -523,7 +523,7 @@
                     "id": 2,
                     "match_type": "exact",
                     "type": "simple",
-                    "max_size": 8192,
+                    "max_size": 4096,
                     "with_counters": false,
                     "direct_meters": null,
                     "support_timeout": false,

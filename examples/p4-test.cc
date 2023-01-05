@@ -114,6 +114,8 @@ int main (int argc, char *argv[]) {
 
     Packet::EnablePrinting ();
 
+    csma.EnablePcapAll("p4-test", true);
+
     Simulator::Run ();
     Simulator::Destroy ();
     return 0;
