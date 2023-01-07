@@ -13,7 +13,7 @@ namespace ns3 {
   std::string P4GlobalVar::g_flowTablePath="";
   std::string P4GlobalVar::g_viewFlowTablePath="";
   std::string P4GlobalVar::g_p4MatchTypePath="";
-  unsigned int P4GlobalVar::g_populateFlowTableWay=LOCAL_CALL;
+  unsigned int P4GlobalVar::g_populateFlowTableWay=LOCAL_CALL; // LOCAL_CALL/RUNTIME_CLI
   std::string P4GlobalVar::g_p4JsonPath="";
 
   std::string P4GlobalVar::g_homePath="/home/p4/";

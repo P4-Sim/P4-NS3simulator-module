@@ -575,7 +575,7 @@ namespace ns3 {
 					}
 					break;
 				}
-										// Just support hexadecimal match fields, action parameters
+				// Just support hexadecimal match fields, action parameters
 
 				case TABLE_ADD: {//table_add <table name> <action name> <match fields> => <action parameters> [priority]
 					try {
