@@ -345,12 +345,15 @@ namespace ns3 {
 		std::set<unsigned int> &recordPassSwitch, std::vector<std::vector<unsigned int>> &hostLink, unsigned int &linkCounter)
 	{
 		unsigned int curPassSwitchNum = passSwitch.size();
+		// do the linking with dfs from the confirmed switch(switchIndex)
 		for (size_t t = 0; t < m_switchNodes[switchIndex].portNode.size(); t++)//traver port number
 		{
 			if (t == switchInPort) continue;
-			if (m_switchNodes[switchIndex].portNode[t].flag == 0)// represent host
-			{
+			if (m_switchNodes[switchIndex].portNode[t].flag == 0)
+			{	
+				// flag = 0, represent host --> host with switch
 				unsigned int dstHostIndex = m_switchNodes[switchIndex].portNode[t].nodeIndex;
+				// 2D array "hostLink" for the connection saving 
 				if (hostLink[hostIndex][dstHostIndex] == 0)
 				{
 					hostLink[hostIndex][dstHostIndex] = 1;
@@ -369,12 +372,14 @@ namespace ns3 {
 					AddFlowtableEntry2(hostIndex, switchInPort, switchIndex, t, dstHostIndex);
 				}
 			}
-			else //represent switch
+			else
 			{
+				//represent switch --> switch with switch
 				unsigned nextSwitchIndex = m_switchNodes[switchIndex].portNode[t].nodeIndex;
 				unsigned nextSwitchPort = m_switchNodes[switchIndex].portNode[t].nodePort;
 				if (recordPassSwitch.count(nextSwitchIndex) == 0)
-				{// make sure stay in init switch num
+				{
+					// make sure stay in init switch num
 					while (passSwitch.size() > curPassSwitchNum)
 						passSwitch.pop();
 					passSwitch.push(SaveNode_t(switchIndex, switchInPort, t));

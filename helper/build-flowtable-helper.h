@@ -24,9 +24,9 @@ namespace ns3 {
 
 	struct NodeFlagIndex_t
 	{
-		int flag;//0 represent host; 1 represent switch;
-		unsigned int nodeIndex;
-		unsigned int nodePort;
+		int flag; //0 represent host; 1 represent switch;
+		unsigned int nodeIndex; // The index of the host/switch, from 0 to n
+		unsigned int nodePort; // the port which it connect
 	public:
 		NodeFlagIndex_t(int f, unsigned int ni, unsigned int np)
 		{

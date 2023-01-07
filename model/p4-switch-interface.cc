@@ -525,7 +525,9 @@ namespace ns3 {
 	void P4SwitchInterface::ParsePopulateFlowTableCommand(const std::string commandRow)
 	{
 		std::vector<std::string> parms;
-		int lastP = 0, curP = 0;
+		// lastP : the position of the last space in the string "commandRow"
+		// curP ： the current position.
+		int lastP = 0, curP = 0; 
 		for (size_t i = 0; i < commandRow.size(); i++, curP++)
 		{
 			if (commandRow[i] == ' ')
