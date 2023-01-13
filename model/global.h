@@ -41,6 +41,7 @@ unsigned const int SIMPLE_ROUTER = 3;
 unsigned const int COUNTER = 4;
 unsigned const int METER = 5;
 unsigned const int REGISTER = 6;
+unsigned const int ROUTERDEV = 7;
 // match type
 unsigned const int EXACT = 0;
 unsigned const int LPM = 1;

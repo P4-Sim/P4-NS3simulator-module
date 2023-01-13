@@ -86,6 +86,11 @@ namespace ns3 {
 		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "register/mtype.txt";
 		break;
 	}
+  case ROUTERDEV: {
+    P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "routerdev/routerdev.json";
+		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "routerdev/mtype.txt";
+		break;
+  }
 	default: {
 		std::cerr << "NETWORK_FUNCTION_NO_EXIST!!!" << std::endl;
 		break;
@@ -102,6 +107,7 @@ namespace ns3 {
     P4GlobalVar::g_nfStrUintMap["COUNTER"]=COUNTER;
     P4GlobalVar::g_nfStrUintMap["METER"]=METER;
     P4GlobalVar::g_nfStrUintMap["REGISTER"]=REGISTER;
+    P4GlobalVar::g_nfStrUintMap["ROUTERDEV"]=ROUTERDEV;
   }
 
   TypeId P4GlobalVar::GetTypeId(void)

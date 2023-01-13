@@ -145,7 +145,6 @@ namespace ns3 {
 		* \brief Callback function when a new packet is received from one of
 		* underlying channels. It sends the packet to P4 Model for modification
 		* and sends it out.
-		*
 		*/
 		void ReceiveFromDevice(Ptr<ns3::NetDevice> device,
 			Ptr<const ns3::Packet> packet, uint16_t protocol,
@@ -169,19 +168,19 @@ namespace ns3 {
 		*/
 		BridgeNetDevice &operator =(const BridgeNetDevice &);
 
-		NetDevice::ReceiveCallback m_rxCallback; //!< receive callback
-		NetDevice::PromiscReceiveCallback m_promiscRxCallback; //!< promiscuous receive callback
+		NetDevice::ReceiveCallback m_rxCallback; 					//!< receive callback
+		NetDevice::PromiscReceiveCallback m_promiscRxCallback; 		//!< promiscuous receive callback
 
-		Mac48Address m_address; //!< MAC address of the NetDevice
-		Ptr<Node> m_node; //!< node owning this NetDevice
-		std::vector< Ptr<NetDevice> > m_ports; //!< bridged ports
-		Ptr<BridgeChannel> m_channel; //!< virtual bridged channel
-		uint32_t m_ifIndex; //!< Interface index
-		uint16_t m_mtu; //!< MTU of the bridged NetDevice
+		Mac48Address m_address; 					//!< MAC address of the NetDevice
+		Ptr<Node> m_node; 							//!< node owning this NetDevice
+		std::vector< Ptr<NetDevice> > m_ports; 		//!< bridged ports
+		Ptr<BridgeChannel> m_channel; 				//!< virtual bridged channel
+		uint32_t m_ifIndex; 						//!< Interface index
+		uint16_t m_mtu; 							//!< MTU of the bridged NetDevice
 
-						/**
-						* \brief get the port number of a net device connected to P4 net device.
-						*/
+		/**
+		* \brief get the port number of a net device connected to P4 net device.
+		*/
 		int GetPortNumber(Ptr<NetDevice>);
 	}; //namespace ns3
 

@@ -25,6 +25,7 @@
 #include "ns3/node.h"
 #include "ns3/ethernet-header.h"
 #include "ns3/arp-l3-protocol.h"
+#include "ns3/delay-jitter-estimation.h"
 #include <bm/bm_sim/switch.h>
 #include <bm/bm_sim/core/primitives.h>
 #include <bm/bm_runtime/bm_runtime.h>
@@ -149,6 +150,14 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 	int ns3Length = packetIn->GetSize();
 	uint8_t* ns3Buffer = new uint8_t[ns3Length];
 	packetIn->CopyData(ns3Buffer,ns3Length);
+
+	// parse the ByteTag in ns3::packet (for tracing delay etc)
+	bool haveDJTag = false;
+	DelayJitterEstimationTimestampTag djtag;
+	if (packetIn->FindFirstMatchingByteTag(djtag)) {
+		haveDJTag = true;
+	}
+	
 	std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
 		ns3Length, bm::PacketBuffer(2048, (char*)ns3Buffer, ns3Length));
 	delete ns3Buffer;
@@ -189,9 +198,16 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 		deparser->deparse(packet.get());
 
 		// *************************Change bm::Packet to ns3::Packet***********************
+
 		void *bm2Buffer = packet.get()->data();
 		size_t bm2Length = packet.get()->get_data_size();
 		ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
+
+		// add the ByteTag of the ns3::packet (for tracing delay etc)
+		if (haveDJTag) {
+			ns3Packet.AddByteTag(djtag);
+		}
+
 		Ptr<ns3::Packet> packetOut(&ns3Packet);
 		// ********************************************************************************
 
