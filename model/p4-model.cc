@@ -15,7 +15,10 @@
 * along with this program; if not, write to the Free Software
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *
-* Author:
+* Author: PengKuang <kphf1995cm@outlook.com>
+* Modified: MaMingyu <myma979@gmail.com>
+* 
+* @todo Currently the NS LOG system cannot be used.
 */
 
 #include "ns3/p4-model.h"
@@ -62,14 +65,15 @@ P4Model::P4Model(P4NetDevice* netDevice) :
 	add_required_field("standard_metadata", "packet_length");
 	add_required_field("standard_metadata", "instance_type");
 	add_required_field("standard_metadata", "egress_spec");
-	add_required_field("standard_metadata", "clone_spec");
+	// Error: Field standard_metadata.clone_spec is required by switch target but is not defined
+	//add_required_field("standard_metadata", "clone_spec");
 	add_required_field("standard_metadata", "egress_port");
 
 	force_arith_field("standard_metadata", "ingress_port");
 	force_arith_field("standard_metadata", "packet_length");
 	force_arith_field("standard_metadata", "instance_type");
 	force_arith_field("standard_metadata", "egress_spec");
-	force_arith_field("standard_metadata", "clone_spec");
+	//force_arith_field("standard_metadata", "clone_spec");
 
 	force_arith_field("queueing_metadata", "enq_timestamp");
 	force_arith_field("queueing_metadata", "enq_qdepth");
@@ -92,17 +96,18 @@ int P4Model::init(int argc, char *argv[]) {
 	using ::sswitch_runtime::SimpleSwitchIf;
 	using ::sswitch_runtime::SimpleSwitchProcessor;
 
+	int status = 0;
 	// use local call to populate flowtable
 	if (P4GlobalVar::g_populateFlowTableWay == LOCAL_CALL)
-	{
-		this->InitFromCommandLineOptionsLocal(argc, argv, m_argParser);
+	{	
+		status = this->InitFromCommandLineOptionsLocal(argc, argv, m_argParser);
 	}
 	else
 	{
 		// start thrift server , use runtime_CLI populate flowtable
 		if (P4GlobalVar::g_populateFlowTableWay == RUNTIME_CLI)
 		{
-			this->init_from_command_line_options(argc, argv, m_argParser);
+			status = this->init_from_command_line_options(argc, argv, m_argParser);
 			int thriftPort = this->get_runtime_port();
 			bm_runtime::start_server(this, thriftPort);
 			//NS_LOG_LOGIC("Wait " << P4GlobalVar::g_runtimeCliTime << " seconds for RuntimeCLI operations ");
@@ -110,13 +115,16 @@ int P4Model::init(int argc, char *argv[]) {
 			//bm_runtime::add_service<SimpleSwitchIf, SimpleSwitchProcessor>("simple_switch", sswitch_runtime::get_handler(this));
 		}
 	}
+	if (status != 0) {
+		//NS_LOG_LOGIC("ERROR: the P4 Model switch init failed in P4Model::init.");
+		//std::cout << "ERROR: the P4 Model switch init failed in P4Model::init." << std::endl;
+		return -1;
+	}
 	return 0;
 }
 
 int P4Model::InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetParserBasic *tp)
 {
-
-
 	//NS_LOG_FUNCTION(this);
 	bm::OptionsParser parser;
 	parser.parse(argc, argv, tp);
@@ -135,9 +143,10 @@ int P4Model::InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetP
 #endif
 	}
 	if (parser.no_p4)
+		// with out p4-json, acctually the switch will wait for the configuration(p4-json) before work
 		status = init_objects_empty(parser.device_id, transport);
 	else
-		// load p4 json to switch
+		// load p4-json to switch
 		status = init_objects(parser.config_file_path, parser.device_id, transport);
 	return status;
 }
@@ -145,7 +154,6 @@ int P4Model::InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetP
 int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort, 
 	uint16_t protocol, Address const &destination) 
 {
-	
 	// **************Change ns3::Packet to bm::Packet***************************
 	int ns3Length = packetIn->GetSize();
 	uint8_t* ns3Buffer = new uint8_t[ns3Length];
@@ -161,7 +169,8 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 	std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
 		ns3Length, bm::PacketBuffer(2048, (char*)ns3Buffer, ns3Length));
 	delete ns3Buffer;
-	// *************************************************************************
+
+	// **************bm::Packet processing with phv ***************************
 	if (packet) {
 
 		int len = packet.get()->get_data_size();
@@ -215,6 +224,7 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 
 		return 0;
 	}
+	//NS_LOG_LOGIC("ERROR: Transfer ns::pkt to bm::pkt failed in P4Model::ReceivePacket.");
 	return -1;
 }
 

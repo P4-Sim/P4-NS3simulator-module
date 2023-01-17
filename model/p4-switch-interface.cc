@@ -596,8 +596,8 @@ namespace ns3 {
 								{
 								case bm::MatchKeyParam::Type::EXACT:
 								{
-									//NS_LOG_LOGIC("EXACT");
-									matchKey.push_back(bm::MatchKeyParam(matchType, HexstrToBytes(parms[i])));
+									matchKey.push_back(bm::MatchKeyParam(matchType, HexstrToBytes(parms[i]))); // p4 version 14
+									//matchKey.push_back(bm::MatchKeyParam(matchType, IpStrToBytes(parms[i]))); // p4 version 16
 									break;
 								}
 								case bm::MatchKeyParam::Type::LPM:
@@ -606,7 +606,8 @@ namespace ns3 {
 									std::string prefix = parms[i].substr(0, pos);
 									std::string length = parms[i].substr(pos + 1);
 									unsigned int prefixLength = StrToInt(length);
-									matchKey.push_back(bm::MatchKeyParam(matchType, HexstrToBytes(parms[i], prefixLength), int(prefixLength)));
+									matchKey.push_back(bm::MatchKeyParam(matchType, HexstrToBytes(parms[i], prefixLength), int(prefixLength))); // p4 version 14
+									//matchKey.push_back(bm::MatchKeyParam(matchType, IpStrToBytes(parms[i], prefixLength), int(prefixLength))); // p4 version 16
 									break;
 								}
 								case bm::MatchKeyParam::Type::TERNARY:

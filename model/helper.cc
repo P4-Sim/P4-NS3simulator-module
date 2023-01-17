@@ -137,6 +137,20 @@ std::string HexstrToBytes(const std::string& str)
 
 std::string HexstrToBytes(const std::string& str, unsigned int bitWidth)
 {
+    std::string res;
+    res.resize(ceil(double(bitWidth) / 8));
+    std::string full_ip_res(str);
+    for (size_t i = 0; i < res.size(); i++) {
+        res[i] = full_ip_res[i];
+    }
+    return res;
+}
+
+/*
+// There maybe a bug with memory access when bitWidth = 32. @mingyu
+
+std::string HexstrToBytes(const std::string& str, unsigned int bitWidth)
+{
 
     std::string hexStr;
     if (str.find("0x") < str.size())
@@ -204,6 +218,7 @@ std::string HexstrToBytes(const std::string& str, unsigned int bitWidth)
     }
     return res;
 }
+*/
 
 std::string UintToString(unsigned int num)
 {
@@ -255,4 +270,37 @@ double StrToDouble(const std::string& str)
 
 	return integerRes + decimalRes*0.1;
 }
+
+std::string IpStrToBytes(const std::string& str)
+{
+    std::string res;
+    int j = 0, temp = 0;
+    res.resize(4); // ip with 4 parts.
+    for (size_t i = 0; i < str.size(); i++) {
+        if (str[i] == '.') {
+            res[j] = temp;
+            temp = 0;
+            j++;
+        }
+        else {
+            temp = temp * 10 + (str[i] - '0'); 
+        }
+    }
+
+    res[3] = temp; // deal with the last number.
+    return res;
+}
+
+
+std::string IpStrToBytes(const std::string& str, unsigned int bitWidth)
+{
+    std::string res;
+    res.resize(ceil(double(bitWidth) / 8));
+    std::string full_ip_res = IpStrToBytes(str);
+    for (size_t i = 0; i < res.size(); i++) {
+        res[i] = full_ip_res[i];
+    }
+    return res;
+}
+
 }

@@ -103,12 +103,19 @@ namespace ns3 {
 		void start_and_return_() {
 		}
 
+		
 		/**
-		* \brief Process a packet using P4 pipeline. Called every time
-		* there is a packet needing processing from P4 Device.
-		*
-		*/
-
+		 * @brief receive a packet and after process send it out, the p4 device receive 
+		 * a ns3 package will convert it into a p4 package, then using P4 pipeline. 
+		 * After processed the p4 package will convert back to ns3. Called every time 
+		 * there is a packet need processed by P4 Device.
+		 * 
+		 * @param packetIn ns3::packet comes in
+		 * @param inPort 
+		 * @param protocol ns3 protocol to send and receive
+		 * @param destination ns3 destination for send packet out
+		 * @return int 
+		 */
 		int ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort, uint16_t protocol, Address const &destination);
 
 		/**
