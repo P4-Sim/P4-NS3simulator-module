@@ -10,7 +10,7 @@ namespace ns3 {
 
   // init default static global variable
   unsigned int P4GlobalVar::g_networkFunc=ROUTER;
-  std::string P4GlobalVar::g_flowTablePath="";
+  std::string P4GlobalVar::g_flowTablePath=""; // SET BY HAND BEFORE USING
   std::string P4GlobalVar::g_viewFlowTablePath="";
   std::string P4GlobalVar::g_p4MatchTypePath="";
   unsigned int P4GlobalVar::g_populateFlowTableWay=LOCAL_CALL; // LOCAL_CALL/RUNTIME_CLI
@@ -64,6 +64,7 @@ namespace ns3 {
 	case ROUTER: {
 		P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "router/router.json";
 		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "router/mtype.txt";
+    P4GlobalVar::g_flowTableDir = P4GlobalVar::g_nfDir + "router/flowtable/";
 		break;
 	}
 	case SIMPLE_ROUTER: {
@@ -89,6 +90,7 @@ namespace ns3 {
   case ROUTERDEV: {
     P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "routerdev/routerdev.json";
 		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "routerdev/mtype.txt";
+    P4GlobalVar::g_flowTableDir = P4GlobalVar::g_nfDir + "routerdev/flowtable/";
 		break;
   }
 	default: {

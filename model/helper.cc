@@ -135,6 +135,7 @@ std::string HexstrToBytes(const std::string& str)
     return res;
 }
 
+/*
 std::string HexstrToBytes(const std::string& str, unsigned int bitWidth)
 {
     std::string res;
@@ -145,9 +146,7 @@ std::string HexstrToBytes(const std::string& str, unsigned int bitWidth)
     }
     return res;
 }
-
-/*
-// There maybe a bug with memory access when bitWidth = 32. @mingyu
+*/
 
 std::string HexstrToBytes(const std::string& str, unsigned int bitWidth)
 {
@@ -218,7 +217,6 @@ std::string HexstrToBytes(const std::string& str, unsigned int bitWidth)
     }
     return res;
 }
-*/
 
 std::string UintToString(unsigned int num)
 {

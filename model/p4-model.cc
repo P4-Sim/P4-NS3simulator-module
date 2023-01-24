@@ -61,26 +61,29 @@ P4Model::P4Model(P4NetDevice* netDevice) :
 	add_component<bm::McSimplePre>(m_pre);
 
 	m_argParser = new bm::TargetParserBasic();
-	add_required_field("standard_metadata", "ingress_port");
-	add_required_field("standard_metadata", "packet_length");
-	add_required_field("standard_metadata", "instance_type");
-	add_required_field("standard_metadata", "egress_spec");
-	// Error: Field standard_metadata.clone_spec is required by switch target but is not defined
-	//add_required_field("standard_metadata", "clone_spec");
-	add_required_field("standard_metadata", "egress_port");
+	add_required_field("standard_metadata", "ingress_port");	// sm14, v1m
+	add_required_field("standard_metadata", "packet_length");	// sm14, v1m
+	add_required_field("standard_metadata", "instance_type");	// sm14, v1m
+	add_required_field("standard_metadata", "egress_spec");		// sm14, v1m
+	add_required_field("standard_metadata", "egress_port");		// sm14, v1m
+	//add_required_field("standard_metadata", "egress_instance"); // sm14
+	add_required_field("standard_metadata", "checksum_error"); 	// v1m
 
 	force_arith_field("standard_metadata", "ingress_port");
 	force_arith_field("standard_metadata", "packet_length");
 	force_arith_field("standard_metadata", "instance_type");
 	force_arith_field("standard_metadata", "egress_spec");
-	//force_arith_field("standard_metadata", "clone_spec");
 
 	force_arith_field("queueing_metadata", "enq_timestamp");
+	// enq_qdepth: the depth of the queue when the packet was first enqueued, in units of number of packets (not the total size of packets).
 	force_arith_field("queueing_metadata", "enq_qdepth");
 	force_arith_field("queueing_metadata", "deq_timedelta");
+	// deq_qdepth: the depth of queue when the packet was dequeued, in units of number of packets (not the total size of packets).
 	force_arith_field("queueing_metadata", "deq_qdepth");
+	force_arith_field("queueing_metadata", "qid");
 
 	force_arith_field("intrinsic_metadata", "ingress_global_timestamp");
+	force_arith_field("intrinsic_metadata", "egress_global_timestamp");
 	force_arith_field("intrinsic_metadata", "lf_field_list");
 	force_arith_field("intrinsic_metadata", "mcast_grp");
 	force_arith_field("intrinsic_metadata", "resubmit_flag");
