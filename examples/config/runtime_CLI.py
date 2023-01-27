@@ -417,7 +417,7 @@ def int_to_bytes(i, num):
     byte_array = []
     while i > 0:
         byte_array.append(i % 256)
-        i = i / 256
+        i = i // 256
         num -= 1
     if num < 0:
         raise UIn_BadParamError("Parameter is too large")

@@ -1,6 +1,8 @@
 #include "ns3/helper.h"
 #include <iostream>
 #include <math.h>
+#include <algorithm>
+#include <vector>
 
 namespace ns3 {
 
@@ -289,7 +291,6 @@ std::string IpStrToBytes(const std::string& str)
     return res;
 }
 
-
 std::string IpStrToBytes(const std::string& str, unsigned int bitWidth)
 {
     std::string res;
@@ -301,4 +302,53 @@ std::string IpStrToBytes(const std::string& str, unsigned int bitWidth)
     return res;
 }
 
+std::string IntToBytes (std::string input_str, int bitwidth)
+{
+    // transfer from Python <runtime_CLI.py> by handwork
+
+    std::vector<unsigned int> byte_array;
+    std::string res;
+    unsigned int input_num = std::stoi(input_str); // assume decimal 10
+    
+    while (input_num > 0) {
+        byte_array.push_back(input_num % 256);
+        input_num = input_num / 256;
+        bitwidth--;
+    }
+    if (bitwidth < 0) {
+        std::cout << "UIn_BadParamError: too large parameter!" << std::endl;
+    }
+    while (bitwidth > 0)
+    {
+        byte_array.push_back(0);
+        bitwidth--;
+    }
+    std::reverse(byte_array.begin(), byte_array.end());
+    
+    // copy to the res.
+    res.resize(byte_array.size());
+    for (int i = 0; i < int(byte_array.size()); i++) {
+        res[i] = byte_array[i];
+    }
+    return res;
 }
+
+std::string ParseParam (std::string& input_str, unsigned int bitwidth)
+{
+    if (bitwidth == 32) {
+        return HexstrToBytes(input_str);
+    }
+    else if (bitwidth == 48) {
+        //return macAddr_to_bytes(input_str);
+    }
+    else if (bitwidth == 128) {
+        //return ipv6Addr_to_bytes(input_str);
+    }
+    
+    // with int
+    int bw = (bitwidth + 7) / 8;
+    return IntToBytes(input_str, bw);
+    
+}
+
+}//namespace ns3

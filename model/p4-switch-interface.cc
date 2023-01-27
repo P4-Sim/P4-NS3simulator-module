@@ -596,18 +596,22 @@ namespace ns3 {
 								{
 								case bm::MatchKeyParam::Type::EXACT:
 								{
-									matchKey.push_back(bm::MatchKeyParam(matchType, HexstrToBytes(parms[i]))); // p4 version 14
-									//matchKey.push_back(bm::MatchKeyParam(matchType, IpStrToBytes(parms[i]))); // p4 version 16
+									matchKey.push_back(bm::MatchKeyParam(matchType, HexstrToBytes(parms[i])));
 									break;
 								}
 								case bm::MatchKeyParam::Type::LPM:
 								{
+									// WARNING: interface for LPM, by now not support all use cases.
 									int pos = parms[i].find("/");
 									std::string prefix = parms[i].substr(0, pos);
-									std::string length = parms[i].substr(pos + 1);
-									unsigned int prefixLength = StrToInt(length);
-									matchKey.push_back(bm::MatchKeyParam(matchType, HexstrToBytes(parms[i], prefixLength), int(prefixLength))); // p4 version 14
-									//matchKey.push_back(bm::MatchKeyParam(matchType, IpStrToBytes(parms[i], prefixLength), int(prefixLength))); // p4 version 16
+									std::string suffix = parms[i].substr(pos + 1);
+									unsigned int Length = StrToInt(suffix);
+
+									// int temp_bw_codel_drop_cnt8 = 32;
+									// matchKey.push_back(bm::MatchKeyParam(matchType, HexstrToBytes(parms[i], Length), int(Length))); //src
+									std::string key = ParseParam(prefix, Length);
+									// std::string key = key_pre + "/" + suffix;
+									matchKey.push_back(bm::MatchKeyParam(matchType, key, int(Length)));
 									break;
 								}
 								case bm::MatchKeyParam::Type::TERNARY:
@@ -648,11 +652,12 @@ namespace ns3 {
 						i++;
 						int priority;
 						//TO DO:judge key_num equal table need key num
-						if (matchType != bm::MatchKeyParam::Type::TERNARY&&matchType != bm::MatchKeyParam::Type::RANGE)
-						{
+						
+						if (matchType == bm::MatchKeyParam::Type::EXACT) {
 							//NS_LOG_LOGIC("Parse ActionData from index:"<<i);
 							for (; i < parms.size(); i++)
-							{
+							{	
+								// Get the action data from parms, right!
 								actionDataNum++;
 								actionData.push_back_action_data(bm::Data(parms[i]));
 							}
@@ -661,8 +666,21 @@ namespace ns3 {
 							if (m_p4Model->mt_add_entry(0, parms[1], matchKey, parms[2], actionData, &handle, priority) != bm::MatchErrorCode::SUCCESS)
 								throw P4Exception(NO_SUCCESS);
 						}
-						else
-						{
+						else if (matchType == bm::MatchKeyParam::Type::LPM) {
+							for (; i < parms.size(); i++)
+							{	
+								// Get the action data from parms, right!
+								actionDataNum++;
+								actionData.push_back_action_data(bm::Data(parms[i]));
+							}
+							//TO DO:judge action_data_num equal action need num
+							if (m_p4Model->mt_add_entry(0, parms[1], matchKey, parms[2], actionData, &handle) != bm::MatchErrorCode::SUCCESS)
+								throw P4Exception(NO_SUCCESS);
+						}
+						else 
+						{	
+							// ==== TERNARY and Range ====
+							// @todo should not use this part, without test.
 							for (; i < parms.size() - 1; i++)
 							{
 								actionDataNum++;

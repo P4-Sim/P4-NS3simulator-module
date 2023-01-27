@@ -70,5 +70,25 @@ std::string UintToString(unsigned int num);
 
 std::string Uint32ipToHex(unsigned int ip);
 
+
+/**
+ * @brief 
+ * 
+ * @param input_str 
+ * @param bitwidth 
+ * @return std::string 
+ */
+std::string IntToBytes (std::string input_str, int bitwidth);
+
+/**
+ * @brief parse the parameter of the table, different bitwidth will call 
+ * for different functions.
+ * 
+ * @param input_str 
+ * @param bitwidth 
+ * @return std::string 
+ */
+std::string ParseParam (std::string& input_str, unsigned int bitwidth);
+
 }//namespace ns3
 #endif /* HELPER_H */

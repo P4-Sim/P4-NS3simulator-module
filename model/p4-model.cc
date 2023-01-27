@@ -105,23 +105,60 @@ int P4Model::init(int argc, char *argv[]) {
 	{	
 		status = this->InitFromCommandLineOptionsLocal(argc, argv, m_argParser);
 	}
-	else
-	{
+	else if (P4GlobalVar::g_populateFlowTableWay == RUNTIME_CLI)
+	{	
 		// start thrift server , use runtime_CLI populate flowtable
-		if (P4GlobalVar::g_populateFlowTableWay == RUNTIME_CLI)
-		{
-			status = this->init_from_command_line_options(argc, argv, m_argParser);
-			int thriftPort = this->get_runtime_port();
-			bm_runtime::start_server(this, thriftPort);
-			//NS_LOG_LOGIC("Wait " << P4GlobalVar::g_runtimeCliTime << " seconds for RuntimeCLI operations ");
-			std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
-			//bm_runtime::add_service<SimpleSwitchIf, SimpleSwitchProcessor>("simple_switch", sswitch_runtime::get_handler(this));
-		}
+		std::cout << "P4GlobalVar::g_populateFlowTableWay == RUNTIME_CLI" << std::endl;
+		
+		/*status = this->init_from_command_line_options(argc, argv, m_argParser);
+		int thriftPort = this->get_runtime_port();
+		std::cout << "thrift port : " << thriftPort << std::endl;
+		bm_runtime::start_server(this, thriftPort);
+		//NS_LOG_LOGIC("Wait " << P4GlobalVar::g_runtimeCliTime << " seconds for RuntimeCLI operations ");
+		std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
+		//@todo BUG: THIS MAY CHANGED THE API
+		//bm_runtime::add_service<SimpleSwitchIf, SimpleSwitchProcessor>("simple_switch", sswitch_runtime::get_handler(this));
+		//bm_runtime::add_service<SimpleSwitchIf, SimpleSwitchProcessor>("simple_switch", sswitch_runtime::getHandler(this));
+		*/
+
+		// two parts commands file ---> bmv2 switch thrift
+		int thriftPort = 9090;
+		// first: the flow table file for "each switch self", one configuration for one switch
+		m_switch_num_ID++; // using static number as the ID for switch
+
+		thriftPort = thriftPort + m_switch_num_ID - 1;
+		bm_runtime::start_server(this, thriftPort);
+  		//this->start_and_return();
+		std::this_thread::sleep_for(std::chrono::seconds(5));
+		
+		std::string P4CliFileDir = "/home/p4/p4simulator/scratch-p4-file/p4src/routerdev/flowtable/";
+		std::string	P4CliFile = "CLI" + std::to_string(m_switch_num_ID);
+		std::string Bmv2LogDir = "/home/p4/p4simulator/scratch-data/";
+		std::string	P4LogFile = "CLI" + std::to_string(m_switch_num_ID) + ".log";
+
+		//+ " &> " + Bmv2LogDir + P4LogFile
+		std::string cmd0 = "python3 /home/p4/p4simulator/src/bmv2-tools/run_bmv2_CLI --thrift_port " + std::to_string(thriftPort) + " " + P4CliFileDir + P4CliFile;
+		std::system (cmd0.c_str());
+
+		// second: the commands for the "all the switch", one configuration for all switchs
+		std::this_thread::sleep_for(std::chrono::seconds(5));
+		//std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
+
+		std::string commandsFile = "/home/p4/p4simulator/scratch-p4-file/p4src/routerdev/command.txt";
+		std::string cmd1 = "python3 /home/p4/p4simulator/src/bmv2-tools/run_bmv2_CLI --thrift_port " + std::to_string(thriftPort) + " " + commandsFile;
+		std::system (cmd1.c_str());
+	}
+	else {
+		std::cout << "ERROR: wrong P4GlobalVar::g_populateFlowTableWay!" << std::endl;
+		return -1;
 	}
 	if (status != 0) {
 		//NS_LOG_LOGIC("ERROR: the P4 Model switch init failed in P4Model::init.");
 		//std::cout << "ERROR: the P4 Model switch init failed in P4Model::init." << std::endl;
 		return -1;
+	}
+	if (m_switch_num_ID != 0) {
+		std::cout << "Calling the CLI" << m_switch_num_ID << std::endl;
 	}
 	return 0;
 }
