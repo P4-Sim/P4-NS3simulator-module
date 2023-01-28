@@ -30,6 +30,7 @@ namespace ns3 {
 
 #define LOCAL_CALL 0
 #define RUNTIME_CLI 1
+#define NS3PIFOTM 2
 #define NS3 1
 #define P4Simulator 0
 

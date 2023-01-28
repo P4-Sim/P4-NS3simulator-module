@@ -1,7 +1,58 @@
-table_set_default smac mac_learn
-table_set_default dmac broadcast
-mc_mgrp_create 1
-mc_node_create 0 1
-mc_node_create 1 2
-mc_node_associate 1 0
-mc_node_associate 1 1
+table_set_default ipv4_nhop drop
+table_set_default arp_nhop drop
+table_set_default forward_table drop
+
+table_add ipv4_nhop set_ipv4_nhop 0x0a010001 => 0x0a010001
+table_add arp_nhop set_arp_nhop 0x0a010001 => 0x0a010001
+table_add forward_table set_port 0x0a010001 => 0x0
+table_add ipv4_nhop set_ipv4_nhop 0x0a010002 => 0x0a010002
+table_add arp_nhop set_arp_nhop 0x0a010002 => 0x0a010002
+table_add forward_table set_port 0x0a010002 => 0x1
+table_add ipv4_nhop set_ipv4_nhop 0x0a010003 => 0x0a010003
+table_add arp_nhop set_arp_nhop 0x0a010003 => 0x0a010003
+table_add forward_table set_port 0x0a010003 => 0x2
+table_add ipv4_nhop set_ipv4_nhop 0x0a010004 => 0x0a010004
+table_add arp_nhop set_arp_nhop 0x0a010004 => 0x0a010004
+table_add forward_table set_port 0x0a010004 => 0x3
+table_add ipv4_nhop set_ipv4_nhop 0x0a010005 => 0x0a010005
+table_add arp_nhop set_arp_nhop 0x0a010005 => 0x0a010005
+table_add forward_table set_port 0x0a010005 => 0x3
+table_add ipv4_nhop set_ipv4_nhop 0x0a010006 => 0x0a010006
+table_add arp_nhop set_arp_nhop 0x0a010006 => 0x0a010006
+table_add forward_table set_port 0x0a010006 => 0x3
+
+table_add slice_priority set_priority 0x0a010001 => 0x7
+table_add slice_priority set_priority 0x0a010002 => 0x0
+table_add slice_priority set_priority 0x0a010003 => 0x3
+table_add slice_priority set_priority 0x0a010006 => 0x7
+table_add slice_priority set_priority 0x0a010005 => 0x0
+table_add slice_priority set_priority 0x0a010004 => 0x3
+
+set_queue_rate 500 1
+set_queue_depth 10000 1
+
+set_queue_rate 500 2
+set_queue_depth 10000 2
+
+set_queue_rate 500 3
+set_queue_depth 10000 3
+
+set_queue_rate 500 4
+set_queue_depth 10000 4
+
+table_set_default t_codel_control_law a_codel_control_law 0x228
+table_add t_codel_control_law a_codel_control_law 0/17 => 0x30d
+table_add t_codel_control_law a_codel_control_law 0/18 => 0x450
+table_add t_codel_control_law a_codel_control_law 0/19 => 0x61a
+table_add t_codel_control_law a_codel_control_law 0/20 => 0x8a1
+table_add t_codel_control_law a_codel_control_law 0/21 => 0xc35
+table_add t_codel_control_law a_codel_control_law 0/22 => 0x1143
+table_add t_codel_control_law a_codel_control_law 0/23 => 0x186a
+table_add t_codel_control_law a_codel_control_law 0/24 => 0x2286
+table_add t_codel_control_law a_codel_control_law 0/25 => 0x30d4
+table_add t_codel_control_law a_codel_control_law 0/26 => 0x450d
+table_add t_codel_control_law a_codel_control_law 0/27 => 0x61a8
+table_add t_codel_control_law a_codel_control_law 0/28 => 0x8a1b
+table_add t_codel_control_law a_codel_control_law 0/29 => 0xc350
+table_add t_codel_control_law a_codel_control_law 0/30 => 0x11436
+table_add t_codel_control_law a_codel_control_law 0/31 => 0x186a0

@@ -124,6 +124,8 @@ namespace ns3 {
 		* We instantiate one P4 Model using a json file compiled from
 		* P4 file. Also start the thrift to communicate with the
 		* controller.
+		* 1. setting the json file to the sw
+		* 2. setting the flow table command
 		*
 		* \TODO We will implement a controller model in the future so
 		* a thrift server is not needed to populate table entriea.
