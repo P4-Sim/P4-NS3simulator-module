@@ -135,44 +135,6 @@ int P4Model::init(int argc, char *argv[]) {
 		bm_runtime::add_service<SimpleSwitchIf, SimpleSwitchProcessor>(
 			"simple_switch", sswitch_runtime::get_handler(this));
 		*/
-
-		// This method will call the python script, from "ns3-PIFO-TM"
-		//status = this->init_from_command_line_options(argc, argv, m_argParser);
-
-		// two parts commands file ---> bmv2 switch thrift
-		int thriftPort = 9090; // the thrift port will from 9090 increase with 1.
-		
-		static int m_switch_num_ID = 0; // increse with 1
-		m_switch_num_ID++; // using static number as the ID for switch
-
-		thriftPort = thriftPort + m_switch_num_ID - 1;
-		bm_runtime::start_server(this, thriftPort);
-  		//this->start_and_return();
-
-		std::this_thread::sleep_for(std::chrono::seconds(10));
-		// first: the flow table file for "each switch self", one configuration for one switch
-		std::string P4CliFileDir = "/home/p4/p4simulator/scratch-p4-file/p4src/routerdev/flowtable/";
-		std::string	P4CliFile = "CLI" + std::to_string(m_switch_num_ID);
-		std::string Bmv2LogDir = "/home/p4/p4simulator/scratch-data/";
-		
-		std::string P4JsonFile = "/home/p4/p4simulator/scratch-p4-file/p4src/routerdev/routerdev" + std::to_string(m_switch_num_ID) + ".json";
-
-		std::cout << "p4 json file :" << P4JsonFile << ". "<< "log file " << Bmv2LogDir << std::endl;
-
-		std::string cmd0 = "python /home/p4/p4simulator/src/p4simulator/examples/config/runtime_CLI.py --thrift-port " + std::to_string(thriftPort)
-							+ " --json " + P4JsonFile 
-							+ " < " + P4CliFileDir + P4CliFile;
-		std::system (cmd0.c_str());
-		
-		/*
-		// second: the commands for the "all the switch", one configuration for all switchs
-		std::this_thread::sleep_for(std::chrono::seconds(5));
-		//std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
-
-		std::string commandsFile = "/home/p4/p4simulator/scratch-p4-file/p4src/routerdev/command.txt";
-		std::string cmd1 = "python3 /home/p4/p4simulator/src/bmv2-tools/run_bmv2_CLI --thrift_port " + std::to_string(thriftPort) + " " + commandsFile;
-		std::system (cmd1.c_str());
-		*/
 	}
 	else if (P4GlobalVar::g_populateFlowTableWay == NS3PIFOTM) {
 		
@@ -193,6 +155,7 @@ int P4Model::init(int argc, char *argv[]) {
 									std::to_string(thriftPort) +
 									std::string("-pipeline.log");
 		opt_parser.thrift_port = thriftPort++;
+		opt_parser.console_logging = true;
 
 		//! Initialize the switch using an bm::OptionsParser instance.
 		int status = this->init_from_options_parser(opt_parser);
