@@ -237,35 +237,65 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 		int len = packet.get()->get_data_size();
 		packet.get()->set_ingress_port(inPort);
 		bm::PHV *phv = packet.get()->get_phv();
-		phv->reset_metadata();
+		// phv->reset_metadata(); // the metadata have info, do not reset
 		phv->get_field("standard_metadata.ingress_port").set(inPort);
 		phv->get_field("standard_metadata.packet_length").set(len);
 
 		if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
 			phv->get_field("intrinsic_metadata.ingress_global_timestamp").set(0);
 		}
+		
+		/*
+		// time info required by codel alg
+		if (phv->has_field("standard_metadata.enq_timestamp")) {
+			phv->get_field("standard_metadata.enq_timestamp").set(0);
+		}
+		if (phv->has_field("standard_metadata.deq_timedelta")) {
+			phv->get_field("standard_metadata.deq_timedelta").set(0);
+		}
+		*/
 
 		// Ingress
 		bm::Parser *parser = this->get_parser("parser");
 		bm::Pipeline *ingressMau = this->get_pipeline("ingress");
-		phv = packet.get()->get_phv();
+		//phv = packet.get()->get_phv(); // duplicate reset for phv
 
-		parser->parse(packet.get());
-
-		ingressMau->apply(packet.get());
-
+		parser->parse(packet.get()); //Invoke Parser
+		ingressMau->apply(packet.get()); //Invoke Match-Action
 		packet->reset_exit();
 
-		bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
-		int egressPort = fEgressSpec.get_int();
+		//bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
+		//int egressPort = fEgressSpec.get_int();
 
 		// Egress
 		bm::Deparser *deparser = this->get_deparser("deparser");
 		bm::Pipeline *egressMau = this->get_pipeline("egress");
-		fEgressSpec = phv->get_field("standard_metadata.egress_spec");
+		bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
+		int egressPort = fEgressSpec.get_int();
 		fEgressSpec.set(0);
+
 		egressMau->apply(packet.get());
-		deparser->deparse(packet.get());
+		deparser->deparse(packet.get());// Invoke Deparser
+
+		/* the drop process usually done in QueueDisc, which is in the
+		 * traffic-control module, and with "DropBeforeEnqueue" or 
+		 * "DropAfterDequeue" etc. Also it gives may tools like traceing,
+		 * drop recording etc. But here we just drop the pkts.
+		 * 
+		 * In p4, the drop should add a line before the mark_to_drop, for example:
+		 * 		meta.drop = 1;      // add for connect ns-3 --> drop @ns3 
+		 * 		mark_to_drop(standard_metadata);
+		 * 
+		 * ideas comes from: ns3-PIFO-TM
+		 * @todo mingyu
+		 */ 
+		if (phv->has_field("metadata.drop")) {
+			int mark_to_drop = phv->get_field("metadata.drop").get_int();
+			if (mark_to_drop != 0) {
+				std::cout << "pkts droped in bmv2-p4!" << std::endl;
+				return 0;
+			}
+		}
 
 		// *************************Change bm::Packet to ns3::Packet***********************
 
@@ -279,8 +309,8 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 		}
 
 		Ptr<ns3::Packet> packetOut(&ns3Packet);
+		
 		// ********************************************************************************
-
 		m_pNetDevice->SendNs3Packet(packetOut, egressPort, protocol, destination);
 
 		return 0;
