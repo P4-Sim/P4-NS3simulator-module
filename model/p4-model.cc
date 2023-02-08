@@ -289,8 +289,16 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 		 * ideas comes from: ns3-PIFO-TM
 		 * @todo mingyu
 		 */ 
-		if (phv->has_field("metadata.drop")) {
-			int mark_to_drop = phv->get_field("metadata.drop").get_int();
+		if (phv->has_field("scalars.userMetadata._drop18")) {
+			int mark_to_drop = phv->get_field("scalars.userMetadata._drop18").get_int();
+			if (mark_to_drop != 0) {
+				std::cout << "pkts droped in bmv2-p4!" << std::endl;
+				return 0;
+			}
+		}
+
+		if (phv->has_field("scalars.userMetadata._drop14")) {
+			int mark_to_drop = phv->get_field("scalars.userMetadata._drop14").get_int();
 			if (mark_to_drop != 0) {
 				std::cout << "pkts droped in bmv2-p4!" << std::endl;
 				return 0;
