@@ -49,9 +49,25 @@ namespace sswitch_runtime {
 
 TypeId P4Model::GetTypeId(void)
 {
-	static TypeId tid = TypeId("ns3::P4Model").SetParent<Object>().SetGroupName(
-		"Network")
-		// .AddConstructor<P4Model> ()
+	static TypeId tid = TypeId("ns3::P4Model")
+		.SetParent<Object>()
+		.SetGroupName("Network")
+		.AddTraceSource ("DropNum1Queue",
+                     "The packets drop number in 1st queue",
+                     MakeTraceSourceAccessor (&P4Model::m_qDropNum_1),
+                     "ns3::TracedValueCallback::Int64")
+		.AddTraceSource ("DropNum2Queue",
+                     "The packets drop number in 2st queue",
+                     MakeTraceSourceAccessor (&P4Model::m_qDropNum_2),
+                     "ns3::TracedValueCallback::Int64")
+		.AddTraceSource ("DropNum3Queue",
+                     "The packets drop number in 3st queue",
+                     MakeTraceSourceAccessor (&P4Model::m_qDropNum_3),
+                     "ns3::TracedValueCallback::Int64")
+		.AddTraceSource ("DropNum1Queue",
+                     "The packets passive droped ",
+                     MakeTraceSourceAccessor (&P4Model::m_dropNum),
+                     "ns3::TracedValueCallback::Int64")
 		;
 	return tid;
 }
@@ -264,9 +280,6 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 		ingressMau->apply(packet.get()); //Invoke Match-Action
 		packet->reset_exit();
 
-		//bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
-		//int egressPort = fEgressSpec.get_int();
-
 		// Egress
 		bm::Deparser *deparser = this->get_deparser("deparser");
 		bm::Pipeline *egressMau = this->get_pipeline("egress");
@@ -276,33 +289,11 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 
 		egressMau->apply(packet.get());
 		deparser->deparse(packet.get());// Invoke Deparser
-
-		/* the drop process usually done in QueueDisc, which is in the
-		 * traffic-control module, and with "DropBeforeEnqueue" or 
-		 * "DropAfterDequeue" etc. Also it gives may tools like traceing,
-		 * drop recording etc. But here we just drop the pkts.
-		 * 
-		 * In p4, the drop should add a line before the mark_to_drop, for example:
-		 * 		meta.drop = 1;      // add for connect ns-3 --> drop @ns3 
-		 * 		mark_to_drop(standard_metadata);
-		 * 
-		 * ideas comes from: ns3-PIFO-TM
-		 * @todo mingyu
-		 */ 
-		if (phv->has_field("scalars.userMetadata._drop18")) {
-			int mark_to_drop = phv->get_field("scalars.userMetadata._drop18").get_int();
-			if (mark_to_drop != 0) {
-				std::cout << "pkts droped in bmv2-p4!" << std::endl;
-				return 0;
-			}
-		}
-
-		if (phv->has_field("scalars.userMetadata._drop14")) {
-			int mark_to_drop = phv->get_field("scalars.userMetadata._drop14").get_int();
-			if (mark_to_drop != 0) {
-				std::cout << "pkts droped in bmv2-p4!" << std::endl;
-				return 0;
-			}
+		
+		// Trace the pkts drop in bmv2
+		bool flag_drop = TraceAllDropInBmv2(phv);
+		if (!flag_drop) {
+			return 0; // the pkts drop, do nothing
 		}
 
 		// *************************Change bm::Packet to ns3::Packet***********************
@@ -327,4 +318,80 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 	return -1;
 }
 
+bool P4Model::TraceAllDropInBmv2(bm::PHV *phv) {
+	/* the drop process usually done in QueueDisc, which is in the
+	* traffic-control module, and with "DropBeforeEnqueue" or 
+	* "DropAfterDequeue" etc. Also it gives may tools like traceing,
+	* drop recording etc. But here we just drop the pkts.
+	* 
+	* In p4, the drop should add a line before the mark_to_drop, for example:
+	* 		meta.drop = 1;      // add for connect ns-3 --> drop @ns3 
+	* 		mark_to_drop(standard_metadata);
+	* In ns-3, we maybe need to trace:
+	* 		scalars.userMetadata._drop18 // the name from json file data struct
+	* ideas comes from: ns3-PIFO-TM
+	* @todo mingyu
+	*/
 
+	// The traced var name in bmv2, check the .json file get the name
+	const std::string switch_1_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop18";
+	const std::string switch_1_queue_Id = "userMetadata._ns3i_ns3_queue_id19";
+	const std::string switch_2_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop14";
+	const std::string switch_2_queue_Id = "userMetadata._ns3i_ns3_queue_id15";
+
+	// the drop from switch 1 with codel1.p4
+	if (phv->has_field(switch_1_drop_Nr)) {
+		int mark_to_drop = phv->get_field(switch_1_drop_Nr).get_int();
+		if (mark_to_drop != 0) {
+			if (phv->has_field(switch_1_queue_Id)) {
+				int queue_id = phv->get_field(switch_1_queue_Id).get_int();
+				this->RecordAllDropInfo(queue_id); // Recored data
+			}
+			else {
+				this->m_dropNum++;
+				std::cout << "pkts passive droped in switch 1 bmv2-p4!" << std::endl;
+			}
+			return false; // drop in ns-3
+		}
+	}
+
+	// the drop from switch 2 with codel2.p4
+	if (phv->has_field(switch_2_drop_Nr)) {
+		int mark_to_drop = phv->get_field(switch_2_drop_Nr).get_int();
+		if (mark_to_drop != 0) {
+			if (phv->has_field(switch_2_queue_Id)) {
+				int queue_id = phv->get_field(switch_2_queue_Id).get_int();
+				this->RecordAllDropInfo(queue_id); // Recored data
+			}
+			else {
+				this->m_dropNum++;
+				std::cout << "pkts passive droped in switch 2 bmv2-p4!" << std::endl;
+			}
+			return false; // drop in ns-3
+		}
+	}
+	return true; // No drop in ns-3
+}
+
+bool P4Model::RecordAllDropInfo(int queue_id) {
+	switch (queue_id) 
+	{
+		case 1:	{
+			this->m_qDropNum_1++;
+			break;
+		}
+		case 2: {
+			this->m_qDropNum_2++;
+			break;
+		}
+		case 3: {
+			this->m_qDropNum_3++;
+			break;
+		}
+		default: {
+			std::cout << "WARNING: No queue id, pkts initiative to be dropped in switch bmv2-p4!" << std::endl;
+			break;
+		}
+	}
+	return true;
+}

@@ -31,6 +31,7 @@
 #include "ns3/string.h"
 #include "ns3/integer.h"
 #include "ns3/uinteger.h"
+#include "ns3/traced-value.h"
 #include <bm/bm_sim/queue.h>
 #include <bm/bm_sim/queueing.h>
 #include <bm/bm_sim/packet.h>
@@ -51,9 +52,7 @@ namespace ns3 {
 
 	class P4NetDevice;
 
-
 	/**
-	*
 	* \brief A P4 Pipeline Implementation to be wrapped in P4 Device
 	*
 	* The P4Model is using pipeline implementation provided by
@@ -103,7 +102,6 @@ namespace ns3 {
 		void start_and_return_() {
 		}
 
-		
 		/**
 		 * @brief receive a packet and after process send it out, the p4 device receive 
 		 * a ns3 package will convert it into a p4 package, then using P4 pipeline. 
@@ -151,6 +149,19 @@ namespace ns3 {
 		*/
 		int InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetParserBasic *tp = nullptr);
 
+		/**
+		 * @brief Trace the pkts whether will be dropped in bmv2.
+		 * And also trace the reason and the info of the drop, for example, 
+		 * trace the pkts belongs which queue (priority), or drop pkts 
+		 * because the table not match(no dst in network)
+		 * 
+		 * @param phv 
+		 * @return bool false will drop the pkts
+		 */
+		bool TraceAllDropInBmv2(bm::PHV *phv);
+
+		bool RecordAllDropInfo(int queue_id);
+
 	private:
 
 		/**
@@ -174,33 +185,25 @@ namespace ns3 {
 		*/
 		//struct Ns3PacketAndPort * Bmv2ToNs3(struct Bm2PacketAndPort *);
 
-		/**
-		* \brief Packet ID
-		*/
-		int m_pktID = 0;
-
+		int m_pktID = 0;								//!< Packet ID
+		TracedValue<int64_t> m_qDropNum_1;        		//!< Number of the pkts drops in 1 queue
+		TracedValue<int64_t> m_qDropNum_2;        		//!< Number of the pkts drops in 2 queue
+		TracedValue<int64_t> m_qDropNum_3;        		//!< Number of the pkts drops in 3 queue
+		TracedValue<int64_t> m_dropNum;					//!< Number of the pkts drops (passive droped)
 		using clock = std::chrono::high_resolution_clock;
 
-		/**
-		* \brief Structure of parsers
-		*/
-		bm::TargetParserBasic * m_argParser;
+		bm::TargetParserBasic * m_argParser; 		//!< Structure of parsers
 
 		/**
 		* A simple, 2-level, packet replication engine,
 		* configurable by the control plane.
 		*/
 		std::shared_ptr<bm::McSimplePre> m_pre;
-		
-		/**
-		* A pointer point P4Model's P4NetDevice, used to send packet comed from output buffer
-		*/
-		P4NetDevice* m_pNetDevice;
-
+		P4NetDevice* m_pNetDevice; 					//!< P4Model's P4NetDevice
 	};
 
 
-}
+} // namespace ns3
 #endif // !P4_MODEL_H
 
 
