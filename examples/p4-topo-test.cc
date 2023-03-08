@@ -52,7 +52,7 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("P4Example");
 
-static void SinkRx(Ptr<const Packet> p, const Address& ad)
+static void SinkRx(Ptr<const ns3::Packet> p, const Address& ad)
 {
     std::cout << "Rx"
               << "Received from  " << ad << std::endl;
@@ -340,7 +340,7 @@ int main(int argc, char* argv[])
         MakeCallback(&SinkRx));
     Config::Connect("/NodeList/*/ApplicationList/*/$ns3::V4Ping/Rtt",
         MakeCallback(&PingRtt));
-    Packet::EnablePrinting();
+    ns3::Packet::EnablePrinting();
 
     unsigned long simulateStart = getTickCount();
     Simulator::Run();

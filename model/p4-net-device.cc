@@ -135,7 +135,7 @@ void P4NetDevice::ReceiveFromDevice(Ptr<ns3::NetDevice> device,
 	Ptr<ns3::Packet> ns3Packet((ns3::Packet*)PeekPointer(packetIn));
 
 	ns3Packet->AddHeader(eeh);
-
+	
 	//Call P4Model receive packet, no return value
 	p4Model->ReceivePacket(ns3Packet, inPort, protocol, destination);
 }
