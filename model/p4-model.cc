@@ -1050,8 +1050,48 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         phv->get_field("intrinsic_metadata.ingress_global_timestamp")
             .set(get_ts().count());
     }
+
+	/* Record the ns3::protocol, ns3::destinatio into bm::packet, this is 
+	useful, because after the 3 buffers and Ingress Egress loops, or resubmit/
+	recirculaiton etc, maybe bm::packet will get a different order. So I think
+	this situation can only be solved by adding additional information to 
+	the bm::package. @mingyu
+	codel1:	_ns3i_protocol20; _ns3i_destination21
+	codel2: _ns3i_protocol16; _ns3i_destination17
+	*/
+
+	if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
+        phv->get_field("scalars.userMetadata._ns3i_protocol20")
+            .set(protocol);
+    }
+	else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
+		phv->get_field("scalars.userMetadata._ns3i_protocol16")
+            .set(protocol);
+	}
+	else{
+		// warning
+	}
 	
-	// put the bm::packet into buffer, and then goto the ingress.
+	uint8_t address_buffer[4];
+	uint8_t address_len = 4;
+	destination.CopyAllTo(address_buffer, address_len);
+
+	uint32_t address_size = destination.GetSerializedSize();
+	
+
+	if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
+        phv->get_field("scalars.userMetadata._ns3i_destination21")
+            .set(destination);
+    }
+	else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
+		phv->get_field("scalars.userMetadata._ns3i_destination17")
+            .set(destination);
+	}
+	else{
+		// warning
+	}
+	
+	// put the bm::packet into buffer, and then goto the ingress loop.
     input_buffer->push_front(
         InputBuffer::PacketType::NORMAL, std::move(packet));
     return 0;
