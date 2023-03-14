@@ -105,7 +105,10 @@ P4NetDevice::P4NetDevice() :
 	char * args[2] = { NULL,a3 };
 	p4Model->init(2, args);
 
-	//TO DO: call P4Model start_and_return_ ,start mutiple thread
+	//TO DO: call P4Model start_and_return_ ,start mutiple thread @mingyu
+	p4Model->start_and_return_(); // UNSAFE with multithread
+	/*assert failed. cond="SystemThread::Equals (m_main)", msg="Simulator::Schedule 
+	Thread-unsafe invocation!", file=../src/core/model/default-simulator-impl.cc, line=231*/
 
 	//Init P4Model Flow Table
 	if (P4GlobalVar::g_populateFlowTableWay == LOCAL_CALL)
@@ -140,8 +143,9 @@ void P4NetDevice::ReceiveFromDevice(Ptr<ns3::NetDevice> device,
 	p4Model->ReceivePacket(ns3Packet, inPort, protocol, destination);
 }
 
-void P4NetDevice::SendNs3Packet(Ptr<ns3::Packet> packetOut, int outPort, uint16_t protocol, Address const &destination)
+void P4NetDevice::SendNs3Packet(ns3::Packet packet, int outPort, uint16_t protocol, Address const &destination)
 {
+	Ptr<ns3::Packet> packetOut = &packet;
 	if (packetOut)
 	{
 		EthernetHeader eeh;

@@ -1,34 +1,35 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
-* Copyright (c) YEAR COPYRIGHTHOLDER
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation;
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-*
-* Author: PengKuang <kphf1995cm@outlook.com>
-* Modified: MaMingyu <myma979@gmail.com>
-* 
-* @todo Currently the NS LOG system cannot be used.
-*/
+ * Copyright (c) YEAR COPYRIGHTHOLDER
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation;
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ * Author: PengKuang <kphf1995cm@outlook.com>
+ * Modified: MaMingyu <myma979@gmail.com>
+ *
+ * @todo Currently the NS LOG system cannot be used.
+ */
 
 #include "ns3/p4-model.h"
-#include "ns3/helper.h"
-#include "ns3/global.h"
-#include "ns3/log.h"
-#include "ns3/node.h"
-#include "ns3/ethernet-header.h"
 #include "ns3/arp-l3-protocol.h"
 #include "ns3/delay-jitter-estimation.h"
+#include "ns3/ethernet-header.h"
+#include "ns3/global.h"
+#include "ns3/helper.h"
+#include "ns3/log.h"
+#include "ns3/node.h"
+#include "ns3/simulator.h"
 // new added
 #include <bm/bm_sim/_assert.h>
 #include <bm/bm_sim/logger.h>
@@ -49,23 +50,23 @@
 #include "register_access.h"
 // bis here
 #include <bm/SimpleSwitch.h>
-#include <bm/bm_sim/switch.h>
-#include <bm/bm_sim/core/primitives.h>
 #include <bm/bm_runtime/bm_runtime.h>
-#include <bm/bm_sim/simple_pre.h>
+#include <bm/bm_sim/core/primitives.h>
 #include <bm/bm_sim/options_parse.h>
+#include <bm/bm_sim/simple_pre.h>
+#include <bm/bm_sim/switch.h>
 #include <bm/simple_switch/runner.h>
 
 using namespace ns3;
 using bm::Switch;
 
 NS_OBJECT_ENSURE_REGISTERED(P4Model);
-//NS_LOG_COMPONENT_DEFINE(P4Model);
+// NS_LOG_COMPONENT_DEFINE(P4Model);
 
 // take out the handler from simple_switch
 namespace sswitch_runtime {
-    shared_ptr<SimpleSwitchIf> get_handler(SimpleSwitch *sw);
-}  // namespace sswitch_runtime
+shared_ptr<SimpleSwitchIf> get_handler(SimpleSwitch* sw);
+} // namespace sswitch_runtime
 
 namespace {
 
@@ -106,23 +107,22 @@ packet_id_t P4Model::packet_id = 0;
 
 TypeId P4Model::GetTypeId(void)
 {
-	static TypeId tid = TypeId("ns3::P4Model")
-		.SetParent<Object>()
-		.SetGroupName("Network")
-		.AddTraceSource ("DropNum1Queue",
-                     "The packets drop number in 1st queue",
-                     MakeTraceSourceAccessor (&P4Model::m_qDropNum_1),
-                     "ns3::TracedValueCallback::Int64")
-		.AddTraceSource ("DropNum2Queue",
-                     "The packets drop number in 2st queue",
-                     MakeTraceSourceAccessor (&P4Model::m_qDropNum_2),
-                     "ns3::TracedValueCallback::Int64")
-		.AddTraceSource ("DropNum3Queue",
-                     "The packets drop number in 3st queue",
-                     MakeTraceSourceAccessor (&P4Model::m_qDropNum_3),
-                     "ns3::TracedValueCallback::Int64")
-		;
-	return tid;
+    static TypeId tid = TypeId("ns3::P4Model")
+                            .SetParent<Object>()
+                            .SetGroupName("Network")
+                            .AddTraceSource("DropNum1Queue",
+                                "The packets drop number in 1st queue",
+                                MakeTraceSourceAccessor(&P4Model::m_qDropNum_1),
+                                "ns3::TracedValueCallback::Int64")
+                            .AddTraceSource("DropNum2Queue",
+                                "The packets drop number in 2st queue",
+                                MakeTraceSourceAccessor(&P4Model::m_qDropNum_2),
+                                "ns3::TracedValueCallback::Int64")
+                            .AddTraceSource("DropNum3Queue",
+                                "The packets drop number in 3st queue",
+                                MakeTraceSourceAccessor(&P4Model::m_qDropNum_3),
+                                "ns3::TracedValueCallback::Int64");
+    return tid;
 }
 
 class P4Model::MirroringSessions {
@@ -262,32 +262,32 @@ private:
 
 /*
 P4Model::P4Model(P4NetDevice* netDevice) :
-	m_pre(new bm::McSimplePre()) {
-	//! A simple, 2-level, packet replication engine, configurable by the control
-	//! plane. See replicate() for more information.
-	m_pNetDevice = netDevice;
+        m_pre(new bm::McSimplePre()) {
+        //! A simple, 2-level, packet replication engine, configurable by the control
+        //! plane. See replicate() for more information.
+        m_pNetDevice = netDevice;
 
-	add_component<bm::McSimplePre>(m_pre);
+        add_component<bm::McSimplePre>(m_pre);
 
-	m_argParser = new bm::TargetParserBasic();
-	add_required_field("standard_metadata", "ingress_port");	// sm14, v1m
-	add_required_field("standard_metadata", "packet_length");	// sm14, v1m
-	add_required_field("standard_metadata", "instance_type");	// sm14, v1m
-	add_required_field("standard_metadata", "egress_spec");		// sm14, v1m
-	add_required_field("standard_metadata", "egress_port");		// sm14, v1m
-	//add_required_field("standard_metadata", "egress_instance"); // sm14
-	//add_required_field("standard_metadata", "checksum_error"); 	// v1m
+        m_argParser = new bm::TargetParserBasic();
+        add_required_field("standard_metadata", "ingress_port");	// sm14, v1m
+        add_required_field("standard_metadata", "packet_length");	// sm14, v1m
+        add_required_field("standard_metadata", "instance_type");	// sm14, v1m
+        add_required_field("standard_metadata", "egress_spec");		// sm14, v1m
+        add_required_field("standard_metadata", "egress_port");		// sm14, v1m
+        //add_required_field("standard_metadata", "egress_instance"); // sm14
+        //add_required_field("standard_metadata", "checksum_error"); 	// v1m
 
     force_arith_header("standard_metadata");
     force_arith_header("queueing_metadata");
     force_arith_header("intrinsic_metadata");
 
-	import_primitives();
+        import_primitives();
 }*/
 
-P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap, 
-	port_t drop_port, size_t nb_queues_per_port)
-	: Switch(enable_swap)
+P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
+    port_t drop_port, size_t nb_queues_per_port)
+    : Switch(enable_swap)
     , drop_port(drop_port)
     , input_buffer(new InputBuffer(
           1024 /* normal capacity */, 1024 /* resubmit/recirc capacity */))
@@ -307,8 +307,8 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     , pre(new McSimplePreLAG())
     , start(clock::now())
     , mirroring_sessions(new MirroringSessions())
-{	
-	m_pNetDevice = netDevice;
+{
+    m_pNetDevice = netDevice;
 
     add_component<McSimplePreLAG>(pre);
 
@@ -323,119 +323,111 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     force_arith_header("intrinsic_metadata");
 
     import_primitives();
+
+    // ns3 settings init @mingyu
+    address_num = 0; 
 }
 
-int P4Model::init(int argc, char *argv[]) {
-
-	//NS_LOG_FUNCTION(this);
-
-	int status = 0;
-	// use local call to populate flowtable
-	if (P4GlobalVar::g_populateFlowTableWay == LOCAL_CALL)
-	{	
-		// This mode can only deal with "exact" matching table, the "lpm" matching
-		// by now can not use. @todo -mingyu
-		status = this->InitFromCommandLineOptionsLocal(argc, argv, m_argParser);
-	}
-	else if (P4GlobalVar::g_populateFlowTableWay == RUNTIME_CLI)
-	{	
-
-		// start thrift server , use runtime_CLI populate flowtable
-		std::cout << "P4GlobalVar::g_populateFlowTableWay == RUNTIME_CLI" << std::endl;
-		
-		/*
-		// This method is from src
-		// This will connect to the simple_switch thrift server and input the command.
-		// by now the bm::switch and the bm::simple_switch is not the same thing, so
-		// the "sswitch_runtime::get_handler()" by now can not use. @todo -mingyu
-
-		status = this->init_from_command_line_options(argc, argv, m_argParser);
-		int thriftPort = this->get_runtime_port();
-		std::cout << "thrift port : " << thriftPort << std::endl;
-		bm_runtime::start_server(this, thriftPort);
-		//NS_LOG_LOGIC("Wait " << P4GlobalVar::g_runtimeCliTime << " seconds for RuntimeCLI operations ");
-		std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
-		//@todo BUG: THIS MAY CHANGED THE API
-		using ::sswitch_runtime::SimpleSwitchIf;
-		using ::sswitch_runtime::SimpleSwitchProcessor;
-		bm_runtime::add_service<SimpleSwitchIf, SimpleSwitchProcessor>(
-			"simple_switch", sswitch_runtime::get_handler(this));
-		*/
-	}
-	else if (P4GlobalVar::g_populateFlowTableWay == NS3PIFOTM) {
-		
-		// This method for setting the json file and populate the flow table taken from "ns3-PIFO-TM"
-		
-		static int thriftPort = 9090; 		// the thrift port will from 9090 increase with 1.
-
-		//! ===== The first part: init the sw with json.
-		bm::OptionsParser opt_parser;
-		opt_parser.config_file_path = P4GlobalVar::g_p4JsonPath;
-		opt_parser.debugger_addr = std::string("ipc:///tmp/bmv2-") +
-									std::to_string(thriftPort) +
-									std::string("-debug.ipc");
-		opt_parser.notifications_addr = std::string("ipc:///tmp/bmv2-") +
-									std::to_string(thriftPort) +
-									std::string("-notifications.ipc");
-		opt_parser.file_logger = std::string("/tmp/bmv2-") +
-									std::to_string(thriftPort) +
-									std::string("-pipeline.log");
-		opt_parser.thrift_port = thriftPort++;
-		opt_parser.console_logging = true;
-
-		//! Initialize the switch using an bm::OptionsParser instance.
-		int status = this->init_from_options_parser(opt_parser);
-		if (status != 0) {
-			std::exit(status);
-		}
-
-		//！======The second part: init the sw flow table settings.
-		int port = get_runtime_port();
-		bm_runtime::start_server(this, port);
-		std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
-
-		// Run the CLI commands to populate table entries
-		std::string cmd = "python /home/p4/p4simulator/src/bmv2-tools/run_bmv2_CLI --thrift_port " 
-							+ std::to_string(port) + " " + P4GlobalVar::g_flowTablePath;
-		std::system (cmd.c_str());
-	}
-	else {
-		return -1;
-	}
-	if (status != 0) {
-		//NS_LOG_LOGIC("ERROR: the P4 Model switch init failed in P4Model::init.");
-		std::exit(status);
-		return -1;
-	}
-	return 0;
-}
-
-int P4Model::InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetParserBasic *tp)
+int P4Model::init(int argc, char* argv[])
 {
-	//NS_LOG_FUNCTION(this);
-	bm::OptionsParser parser;
-	parser.parse(argc, argv, tp);
-	//NS_LOG_LOGIC("parse pass");
-	std::shared_ptr<bm::TransportIface> transport = nullptr;
-	int status = 0;
-	if (transport == nullptr)
-	{
+
+    // NS_LOG_FUNCTION(this);
+
+    int status = 0;
+    // use local call to populate flowtable
+    if (P4GlobalVar::g_populateFlowTableWay == LOCAL_CALL) {
+        // This mode can only deal with "exact" matching table, the "lpm" matching
+        // by now can not use. @todo -mingyu
+        status = this->InitFromCommandLineOptionsLocal(argc, argv, m_argParser);
+    } else if (P4GlobalVar::g_populateFlowTableWay == RUNTIME_CLI) {
+
+        // start thrift server , use runtime_CLI populate flowtable
+        std::cout << "P4GlobalVar::g_populateFlowTableWay == RUNTIME_CLI" << std::endl;
+
+        /*
+        // This method is from src
+        // This will connect to the simple_switch thrift server and input the command.
+        // by now the bm::switch and the bm::simple_switch is not the same thing, so
+        // the "sswitch_runtime::get_handler()" by now can not use. @todo -mingyu
+
+        status = this->init_from_command_line_options(argc, argv, m_argParser);
+        int thriftPort = this->get_runtime_port();
+        std::cout << "thrift port : " << thriftPort << std::endl;
+        bm_runtime::start_server(this, thriftPort);
+        //NS_LOG_LOGIC("Wait " << P4GlobalVar::g_runtimeCliTime << " seconds for RuntimeCLI operations ");
+        std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
+        //@todo BUG: THIS MAY CHANGED THE API
+        using ::sswitch_runtime::SimpleSwitchIf;
+        using ::sswitch_runtime::SimpleSwitchProcessor;
+        bm_runtime::add_service<SimpleSwitchIf, SimpleSwitchProcessor>(
+                "simple_switch", sswitch_runtime::get_handler(this));
+        */
+    } else if (P4GlobalVar::g_populateFlowTableWay == NS3PIFOTM) {
+
+        // This method for setting the json file and populate the flow table taken from "ns3-PIFO-TM"
+
+        static int thriftPort = 9090; // the thrift port will from 9090 increase with 1.
+
+        //! ===== The first part: init the sw with json.
+        bm::OptionsParser opt_parser;
+        opt_parser.config_file_path = P4GlobalVar::g_p4JsonPath;
+        opt_parser.debugger_addr = std::string("ipc:///tmp/bmv2-") + std::to_string(thriftPort) + std::string("-debug.ipc");
+        opt_parser.notifications_addr = std::string("ipc:///tmp/bmv2-") + std::to_string(thriftPort) + std::string("-notifications.ipc");
+        opt_parser.file_logger = std::string("/tmp/bmv2-") + std::to_string(thriftPort) + std::string("-pipeline.log");
+        opt_parser.thrift_port = thriftPort++;
+        opt_parser.console_logging = true;
+
+        //! Initialize the switch using an bm::OptionsParser instance.
+        int status = this->init_from_options_parser(opt_parser);
+        if (status != 0) {
+            std::exit(status);
+        }
+
+        // ！======The second part: init the sw flow table settings.
+        int port = get_runtime_port();
+        bm_runtime::start_server(this, port);
+        std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
+
+        // Run the CLI commands to populate table entries
+        std::string cmd = "python /home/p4/p4simulator/src/bmv2-tools/run_bmv2_CLI --thrift_port "
+            + std::to_string(port) + " " + P4GlobalVar::g_flowTablePath;
+        std::system(cmd.c_str());
+    } else {
+        return -1;
+    }
+    if (status != 0) {
+        // NS_LOG_LOGIC("ERROR: the P4 Model switch init failed in P4Model::init.");
+        std::exit(status);
+        return -1;
+    }
+    return 0;
+}
+
+int P4Model::InitFromCommandLineOptionsLocal(int argc, char* argv[], bm::TargetParserBasic* tp)
+{
+    // NS_LOG_FUNCTION(this);
+    bm::OptionsParser parser;
+    parser.parse(argc, argv, tp);
+    // NS_LOG_LOGIC("parse pass");
+    std::shared_ptr<bm::TransportIface> transport = nullptr;
+    int status = 0;
+    if (transport == nullptr) {
 #ifdef BMNANOMSG_ON
-		//notifications_addr = parser.notifications_addr;
-		transport = std::shared_ptr<bm::TransportIface>(
-			TransportIface::make_nanomsg(parser.notifications_addr));
+        // notifications_addr = parser.notifications_addr;
+        transport = std::shared_ptr<bm::TransportIface>(
+            TransportIface::make_nanomsg(parser.notifications_addr));
 #else
-		//notifications_addr = "";
-		transport = std::shared_ptr<bm::TransportIface>(bm::TransportIface::make_dummy());
+        // notifications_addr = "";
+        transport = std::shared_ptr<bm::TransportIface>(bm::TransportIface::make_dummy());
 #endif
-	}
-	if (parser.no_p4)
-		// with out p4-json, acctually the switch will wait for the configuration(p4-json) before work
-		status = init_objects_empty(parser.device_id, transport);
-	else
-		// load p4-json to switch
-		status = init_objects(parser.config_file_path, parser.device_id, transport);
-	return status;
+    }
+    if (parser.no_p4)
+        // with out p4-json, acctually the switch will wait for the configuration(p4-json) before work
+        status = init_objects_empty(parser.device_id, transport);
+    else
+        // load p4-json to switch
+        status = init_objects(parser.config_file_path, parser.device_id, transport);
+    return status;
 }
 
 /**
@@ -449,9 +441,9 @@ int P4Model::receive_(port_t port_num, const char* buffer, int len)
     auto packet = new_packet_ptr(port_num, packet_id++, len,
         bm::PacketBuffer(len + 512, buffer, len));
 
-	#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
     BMELOG(packet_in, *packet);
-	#endif
+#endif
     PHV* phv = packet->get_phv();
     // many current P4 programs assume this
     // it is also part of the original P4 spec
@@ -487,7 +479,7 @@ void P4Model::start_and_return_()
     for (size_t i = 0; i < nb_egress_threads; i++) {
         threads_.push_back(std::thread(&P4Model::egress_thread, this, i));
     }
-    threads_.push_back(std::thread(&P4Model::transmit_thread, this));
+    threads_.push_back(std::thread(&P4Model::transmit_thread, this)); // make this part with main thread
 }
 
 void P4Model::swap_notify_()
@@ -594,32 +586,80 @@ void P4Model::set_transmit_fn(TransmitFn fn)
     my_transmit_fn = std::move(fn);
 }
 
-void  P4Model::transmit_thread()
-{
-	// bmv2 packet
+void P4Model::transmit_thread()
+{   
+    // temp values
+    uint16_t protocol;
+    int des_idx;
+    PHV* phv;
+    // bmv2 packet
     while (1) {
         std::unique_ptr<bm::Packet> packet;
         output_buffer.pop_back(&packet);
         if (packet == nullptr)
             break;
-        #ifdef BMNANOMSG_ON
-		BMELOG(packet_out, *packet);
+#ifdef BMNANOMSG_ON
+        BMELOG(packet_out, *packet);
         BMLOG_DEBUG_PKT(*packet, "Transmitting packet of size {} out of port {}",
             packet->get_data_size(), packet->get_egress_port());
-		#endif
-		
-        my_transmit_fn(packet->get_egress_port(), packet->get_packet_id(),
-            packet->data(), packet->get_data_size());
-		
-		// here transfer bmv2 packet to ns3 packet and send out @mingyu
-		/*
-		void *bm2Buffer = packet.get()->data();
-		size_t bm2Length = packet.get()->get_data_size();
-		ns3::Packet ns3Packet((uint8_t*)bm2Buffer, bm2Length);
-		Ptr<ns3::Packet> packetOut(&ns3Packet);
-		m_pNetDevice->SendNs3Packet(packetOut, packet->get_egress_port(), protocol, destination); 
-		*/
+#endif  
+        // default transmit function
+        /*my_transmit_fn(packet->get_egress_port(), packet->get_packet_id(),
+            packet->data(), packet->get_data_size());*/
+    
+        // get the protocol and desination Address for ns-3 @mingyu
+        phv = packet->get_phv();
+        if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
+            Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol20");
+            protocol = f_mgid.get_uint();
+        } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
+            Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol16");
+            protocol = f_mgid.get_uint();
+        } else {
+            // warning
+            std::cout << "No protocol for sending ns-3 packet!" << std::endl;
+            protocol = 0;
+        }
+        
+        if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
+            des_idx = phv->get_field("scalars.userMetadata._ns3i_destination21").get_uint();
+        } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
+            des_idx = phv->get_field("scalars.userMetadata._ns3i_destination17").get_uint();
+        } else {
+            // warning
+            std::cout << "No destnation for sending ns-3 packet!" << std::endl;
+            des_idx = 0;
+        }
+
+        std::cout << "after protocol " << protocol << "after dest: " << des_idx << std::endl;
+        
+        // tranfer bmv2::packet to ns3::packet @mingyu
+        void *bm2Buffer = packet.get()->data();
+        size_t bm2Length = packet.get()->get_data_size();
+        ns3::Packet ns3Packet((uint8_t*)bm2Buffer, bm2Length);
+        //Ptr<ns3::Packet> packetOut(&ns3Packet);
+        int port  = packet->get_egress_port();
+        
+        // push into queue
+
+        ns3pack pack_item = {ns3Packet, port, protocol, des_idx};
+        results_queue.push(pack_item);
+
+        // CALL THE MAIN THREAD OF NS3 @mingyu
+        Time delay = NanoSeconds (1);  // 1 ns
+        Simulator::ScheduleWithContext (1, delay, &ns3::P4Model::TranferNSPakcets, ns3Packet, port, protocol, des_idx);
+        // ERROR: incomplete type ‘ns3::EventMemberImplObjTraits<ns3::Packet>’ used in nested name specifier
+        
+        // Simulator::ScheduleNow (&ns3::P4Model::TranferNSPakcets, ns3Packet, port, protocol, des_idx);
+        
     }
+}
+
+void P4Model::TranferNSPakcets(ns3::Packet packet, int port, 
+    uint16_t protocol, int index)
+{
+    m_pNetDevice->SendNs3Packet(packet, port, protocol, destination_list[index]);
+    std::cout << "success bmv2 -> ns3 recover." << std::endl;
 }
 
 ts_res P4Model::get_ts() const
@@ -689,9 +729,9 @@ void P4Model::multicast(bm::Packet* packet, unsigned int mgid)
     auto packet_size = packet->get_register(RegisterAccess::PACKET_LENGTH_REG_IDX);
     for (const auto& out : pre_out) {
         auto egress_port = out.egress_port;
-		#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
         BMLOG_DEBUG_PKT(*packet, "Replicating packet on port {}", egress_port);
-		#endif
+#endif
         f_rid.set(out.rid);
         std::unique_ptr<bm::Packet> packet_copy = packet->clone_with_phv_ptr();
         RegisterAccess::clear_all(packet_copy.get());
@@ -719,11 +759,11 @@ void P4Model::ingress_thread()
 
         port_t ingress_port = packet->get_ingress_port();
         (void)ingress_port;
-		
-		#ifdef BMNANOMSG_ON
+
+#ifdef BMNANOMSG_ON
         BMLOG_DEBUG_PKT(*packet, "Processing packet received on port {}",
             ingress_port);
-		#endif
+#endif
 
         auto ingress_packet_size = packet->get_register(RegisterAccess::PACKET_LENGTH_REG_IDX);
 
@@ -767,9 +807,9 @@ void P4Model::ingress_thread()
 
         // INGRESS CLONING
         if (clone_mirror_session_id) {
-			#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Cloning packet at ingress");
-			#endif
+#endif
             RegisterAccess::set_clone_mirror_session_id(packet.get(), 0);
             RegisterAccess::set_clone_field_list(packet.get(), 0);
             MirroringSessionConfig config;
@@ -794,17 +834,17 @@ void P4Model::ingress_thread()
                     PKT_INSTANCE_TYPE_INGRESS_CLONE,
                     field_list_id);
                 if (config.mgid_valid) {
-					#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
                     BMLOG_DEBUG_PKT(*packet, "Cloning packet to MGID {}", config.mgid);
-                    #endif
-					multicast(packet_copy.get(), config.mgid);
+#endif
+                    multicast(packet_copy.get(), config.mgid);
                 }
                 if (config.egress_port_valid) {
-                    #ifdef BMNANOMSG_ON
-					BMLOG_DEBUG_PKT(*packet, "Cloning packet to egress port {}",
+#ifdef BMNANOMSG_ON
+                    BMLOG_DEBUG_PKT(*packet, "Cloning packet to egress port {}",
                         config.egress_port);
-                    #endif
-					enqueue(config.egress_port, std::move(packet_copy));
+#endif
+                    enqueue(config.egress_port, std::move(packet_copy));
                 }
                 packet->restore_buffer_state(packet_out_state);
             }
@@ -818,10 +858,10 @@ void P4Model::ingress_thread()
         // RESUBMIT
         auto resubmit_flag = RegisterAccess::get_resubmit_flag(packet.get());
         if (resubmit_flag) {
-			#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Resubmitting packet");
-            #endif
-			// get the packet ready for being parsed again at the beginning of
+#endif
+            // get the packet ready for being parsed again at the beginning of
             // ingress
             packet->restore_buffer_state(packet_in_state);
             p4object_id_t field_list_id = resubmit_flag;
@@ -845,10 +885,10 @@ void P4Model::ingress_thread()
 
         // MULTICAST
         if (mgid != 0) {
-			#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Multicast requested for packet");
-            #endif
-			auto& f_instance_type = phv->get_field("standard_metadata.instance_type");
+#endif
+            auto& f_instance_type = phv->get_field("standard_metadata.instance_type");
             f_instance_type.set(PKT_INSTANCE_TYPE_REPLICATION);
             multicast(packet.get(), mgid);
             // when doing multicast, we discard the original packet
@@ -856,13 +896,13 @@ void P4Model::ingress_thread()
         }
 
         port_t egress_port = egress_spec;
-		#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
         BMLOG_DEBUG_PKT(*packet, "Egress port is {}", egress_port);
-		#endif
+#endif
         if (egress_port == drop_port) { // drop packet
-			#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Dropping packet at the end of ingress");
-			#endif
+#endif
             continue;
         }
         auto& f_instance_type = phv->get_field("standard_metadata.instance_type");
@@ -918,9 +958,9 @@ void P4Model::egress_thread(size_t worker_id)
 
         // EGRESS CLONING
         if (clone_mirror_session_id) {
-			#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Cloning packet at egress");
-			#endif
+#endif
             RegisterAccess::set_clone_mirror_session_id(packet.get(), 0);
             RegisterAccess::set_clone_field_list(packet.get(), 0);
             MirroringSessionConfig config;
@@ -942,16 +982,16 @@ void P4Model::egress_thread(size_t worker_id)
                 packet_copy->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX,
                     packet_size);
                 if (config.mgid_valid) {
-					#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
                     BMLOG_DEBUG_PKT(*packet, "Cloning packet to MGID {}", config.mgid);
-                    #endif
-					multicast(packet_copy.get(), config.mgid);
+#endif
+                    multicast(packet_copy.get(), config.mgid);
                 }
                 if (config.egress_port_valid) {
-                    #ifdef BMNANOMSG_ON
-					BMLOG_DEBUG_PKT(*packet, "Cloning packet to egress port {}",
+#ifdef BMNANOMSG_ON
+                    BMLOG_DEBUG_PKT(*packet, "Cloning packet to egress port {}",
                         config.egress_port);
-					#endif
+#endif
                     enqueue(config.egress_port, std::move(packet_copy));
                 }
             }
@@ -960,9 +1000,9 @@ void P4Model::egress_thread(size_t worker_id)
         // TODO(antonin): should not be done like this in egress pipeline
         port_t egress_spec = f_egress_spec.get_uint();
         if (egress_spec == drop_port) { // drop packet
-			#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Dropping packet at the end of egress");
-			#endif
+#endif
             continue;
         }
 
@@ -971,9 +1011,9 @@ void P4Model::egress_thread(size_t worker_id)
         // RECIRCULATE
         auto recirculate_flag = RegisterAccess::get_recirculate_flag(packet.get());
         if (recirculate_flag) {
-			#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Recirculating packet");
-			#endif
+#endif
             p4object_id_t field_list_id = recirculate_flag;
             RegisterAccess::set_recirculate_flag(packet.get(), 0);
             FieldList* field_list = this->get_field_list(field_list_id);
@@ -1002,35 +1042,35 @@ void P4Model::egress_thread(size_t worker_id)
     }
 }
 
-int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort, 
-	uint16_t protocol, Address const &destination) 
+int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
+    uint16_t protocol, Address const& destination)
 {
-	// **************Change ns3::Packet to bm::Packet***************************
-	int ns3Length = packetIn->GetSize();
-	uint8_t* ns3Buffer = new uint8_t[ns3Length];
-	packetIn->CopyData(ns3Buffer,ns3Length);
+    // **************Change ns3::Packet to bm::Packet***************************
+    int ns3Length = packetIn->GetSize();
+    uint8_t* ns3Buffer = new uint8_t[ns3Length];
+    packetIn->CopyData(ns3Buffer, ns3Length);
 
-	/*
-	// parse the ByteTag in ns3::packet (for tracing delay etc)
-	bool haveDJTag = false;
-	DelayJitterEstimationTimestampTag djtag;
-	if (packetIn->FindFirstMatchingByteTag(djtag)) {
-		haveDJTag = true;
-	}
-	*/
-	
-	// this->receive_(inPort, (char*)ns3Buffer, ns3Length);
+    /*
+    // parse the ByteTag in ns3::packet (for tracing delay etc)
+    bool haveDJTag = false;
+    DelayJitterEstimationTimestampTag djtag;
+    if (packetIn->FindFirstMatchingByteTag(djtag)) {
+            haveDJTag = true;
+    }
+    */
 
-	// we limit the packet buffer to original size + 512 bytes, which means we
+    // this->receive_(inPort, (char*)ns3Buffer, ns3Length);
+
+    // we limit the packet buffer to original size + 512 bytes, which means we
     // cannot add more than 512 bytes of header data to the packet, which should
     // be more than enough
-	std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
-		ns3Length, bm::PacketBuffer(ns3Length + 512, (char*)ns3Buffer, ns3Length));
-	delete ns3Buffer;
+    std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
+        ns3Length, bm::PacketBuffer(ns3Length + 512, (char*)ns3Buffer, ns3Length));
+    delete ns3Buffer;
 
-	#ifdef BMNANOMSG_ON
+#ifdef BMNANOMSG_ON
     BMELOG(packet_in, *packet);
-	#endif
+#endif
     PHV* phv = packet->get_phv();
     // many current P4 programs assume this
     // it is also part of the original P4 spec
@@ -1051,225 +1091,240 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             .set(get_ts().count());
     }
 
-	/* Record the ns3::protocol, ns3::destinatio into bm::packet, this is 
-	useful, because after the 3 buffers and Ingress Egress loops, or resubmit/
-	recirculaiton etc, maybe bm::packet will get a different order. So I think
-	this situation can only be solved by adding additional information to 
-	the bm::package. @mingyu
-	codel1:	_ns3i_protocol20; _ns3i_destination21
-	codel2: _ns3i_protocol16; _ns3i_destination17
-	*/
+    /* Record the ns3::protocol, ns3::destinatio into bm::packet, this is
+    useful, because after the 3 buffers and Ingress Egress loops, or resubmit/
+    recirculaiton etc, maybe bm::packet will get a different order. So I think
+    this situation can only be solved by adding additional information to
+    the bm::package. @mingyu
+    codel1:	_ns3i_protocol20; _ns3i_destination21
+    codel2: _ns3i_protocol16; _ns3i_destination17
+    */
 
-	if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
+    if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
         phv->get_field("scalars.userMetadata._ns3i_protocol20")
             .set(protocol);
-    }
-	else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
-		phv->get_field("scalars.userMetadata._ns3i_protocol16")
+    } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
+        phv->get_field("scalars.userMetadata._ns3i_protocol16")
             .set(protocol);
-	}
-	else{
-		// warning
-	}
-	
-	uint8_t address_buffer[4];
-	uint8_t address_len = 4;
-	destination.CopyAllTo(address_buffer, address_len);
-
-	uint32_t address_size = destination.GetSerializedSize();
-	
-
-	if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
-        phv->get_field("scalars.userMetadata._ns3i_destination21")
-            .set(destination);
+    } else {
+        std::cout << "protocol set from ns3 -> bmv2 failed." << std::endl;
     }
-	else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
-		phv->get_field("scalars.userMetadata._ns3i_destination17")
-            .set(destination);
-	}
-	else{
-		// warning
-	}
-	
-	// put the bm::packet into buffer, and then goto the ingress loop.
+
+    // test for debug
+    int protocol_id = 0;
+    if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
+        Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol20");
+            protocol_id = f_mgid.get_int();
+    } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
+        Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol16");
+            protocol_id = f_mgid.get_int();
+    } else {
+        std::cout << "protocol set from ns3 -> bmv2 failed." << std::endl;
+    }
+    std::cout << "protocol_id value " << protocol_id << std::endl;
+
+    // address saving and processing in ns-3 @mingyu
+    int index_dest_address = 0;
+    if (std::find(destination_list.begin(), destination_list.end(), destination) == destination_list.end()){
+        destination_list.push_back(destination);
+        index_dest_address = destination_list.size() - 1;
+    }
+    else{
+        auto it = std::find(destination_list.begin(), destination_list.end(), destination);
+        index_dest_address = std::distance(destination_list.begin(), it);
+    }
+    std::cout << "index of destadd: " << index_dest_address << " total list size: " << destination_list.size() << std::endl;
+
+    // address index insert with p4 packages @mingyu
+    if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
+        phv->get_field("scalars.userMetadata._ns3i_destination21")
+            .set(index_dest_address);
+    } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
+        phv->get_field("scalars.userMetadata._ns3i_destination17")
+            .set(index_dest_address);
+    } else {
+        // warning
+        std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
+    }
+
+    // put the bm::packet into buffer, and then goto the ingress loop.
     input_buffer->push_front(
         InputBuffer::PacketType::NORMAL, std::move(packet));
     return 0;
 
-	// == P4Model::receive_(port_t port_num, const char* buffer, int len)
+    // == P4Model::receive_(port_t port_num, const char* buffer, int len)
 
-	/*
-    // we limit the packet buffer to original size + 512 bytes, which means we
-    // cannot add more than 512 bytes of header data to the packet, which should
-    // be more than enough
-	std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
-		ns3Length, bm::PacketBuffer(ns3Length + 512, (char*)ns3Buffer, ns3Length));
-	delete ns3Buffer;
+    /*
+// we limit the packet buffer to original size + 512 bytes, which means we
+// cannot add more than 512 bytes of header data to the packet, which should
+// be more than enough
+    std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
+            ns3Length, bm::PacketBuffer(ns3Length + 512, (char*)ns3Buffer, ns3Length));
+    delete ns3Buffer;
 
-	// **************bm::Packet processing with phv ***************************
-	if (packet) {
-        auto start(std::chrono::high_resolution_clock::now());
+    // **************bm::Packet processing with phv ***************************
+    if (packet) {
+    auto start(std::chrono::high_resolution_clock::now());
 
-		int len = packet.get()->get_data_size();
-		packet.get()->set_ingress_port(inPort);
-		bm::PHV *phv = packet.get()->get_phv();
-		
-        phv->reset_metadata();
-        // RegisterAccess::clear_all(packet.get()); // here we can not do the clear register.
+            int len = packet.get()->get_data_size();
+            packet.get()->set_ingress_port(inPort);
+            bm::PHV *phv = packet.get()->get_phv();
 
-        // setting standard metadata
+    phv->reset_metadata();
+    // RegisterAccess::clear_all(packet.get()); // here we can not do the clear register.
 
-		phv->get_field("standard_metadata.ingress_port").set(inPort);
-		phv->get_field("standard_metadata.packet_length").set(len);
+    // setting standard metadata
 
-		if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
-			phv->get_field("intrinsic_metadata.ingress_global_timestamp").set(0);
-		}
-		
-		
-		// time info required by codel alg
-		if (phv->has_field("standard_metadata.enq_timestamp")) {
-			phv->get_field("standard_metadata.enq_timestamp").set(0);
-		}
-		if (phv->has_field("standard_metadata.deq_timedelta")) {
-			phv->get_field("standard_metadata.deq_timedelta").set(0);
-		}
-		
+            phv->get_field("standard_metadata.ingress_port").set(inPort);
+            phv->get_field("standard_metadata.packet_length").set(len);
 
-		// Ingress
-		bm::Parser *parser = this->get_parser("parser");
-		bm::Pipeline *ingressMau = this->get_pipeline("ingress");
-		//phv = packet.get()->get_phv(); // duplicate reset for phv
+            if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
+                    phv->get_field("intrinsic_metadata.ingress_global_timestamp").set(0);
+            }
 
-		parser->parse(packet.get()); //Invoke Parser
-		ingressMau->apply(packet.get()); //Invoke Match-Action
-		packet->reset_exit();
 
-        auto ingress_ts(std::chrono::high_resolution_clock::now());
+            // time info required by codel alg
+            if (phv->has_field("standard_metadata.enq_timestamp")) {
+                    phv->get_field("standard_metadata.enq_timestamp").set(0);
+            }
+            if (phv->has_field("standard_metadata.deq_timedelta")) {
+                    phv->get_field("standard_metadata.deq_timedelta").set(0);
+            }
 
-		// Egress
-		bm::Deparser *deparser = this->get_deparser("deparser");
-		bm::Pipeline *egressMau = this->get_pipeline("egress");
-		bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
-		int egressPort = fEgressSpec.get_int();
-		fEgressSpec.set(0);
 
-        auto egress_ts(std::chrono::high_resolution_clock::now());
+            // Ingress
+            bm::Parser *parser = this->get_parser("parser");
+            bm::Pipeline *ingressMau = this->get_pipeline("ingress");
+            //phv = packet.get()->get_phv(); // duplicate reset for phv
 
-		egressMau->apply(packet.get());
-		deparser->deparse(packet.get());// Invoke Deparser
-		
-		// Trace the pkts drop in bmv2
-		bool flag_drop = TraceAllDropInBmv2(phv);
-		if (!flag_drop) {
-			return 0; // the pkts drop, do nothing
-		}
-        
-        //std::cout << "start: " << start.time_since_epoch().count() << std::endl;
-        std::cout << "bmv2: start: " << start.time_since_epoch().count() << "ingress: "
-             << ingress_ts.time_since_epoch().count() << "egress: " 
-             << egress_ts.time_since_epoch().count() << std::endl;
-		
-        // *************************Change bm::Packet to ns3::Packet***********************
+            parser->parse(packet.get()); //Invoke Parser
+            ingressMau->apply(packet.get()); //Invoke Match-Action
+            packet->reset_exit();
 
-		void *bm2Buffer = packet.get()->data();
-		size_t bm2Length = packet.get()->get_data_size();
-		ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
+    auto ingress_ts(std::chrono::high_resolution_clock::now());
 
-		// add the ByteTag of the ns3::packet (for tracing delay etc)
-		if (haveDJTag) {
-			ns3Packet.AddByteTag(djtag);
-		}
+            // Egress
+            bm::Deparser *deparser = this->get_deparser("deparser");
+            bm::Pipeline *egressMau = this->get_pipeline("egress");
+            bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
+            int egressPort = fEgressSpec.get_int();
+            fEgressSpec.set(0);
 
-		Ptr<ns3::Packet> packetOut(&ns3Packet);
-		// ********************************************************************************
-		// request: the port of switch in ns3 = the port set in p4 json 
-		m_pNetDevice->SendNs3Packet(packetOut, egressPort, protocol, destination); 
-		
-		
-		return 0;
-	}
-	
-	//NS_LOG_LOGIC("ERROR: Transfer ns::pkt to bm::pkt failed in P4Model::ReceivePacket.");
-	// return -1;
-	return 0;
-	*/
+    auto egress_ts(std::chrono::high_resolution_clock::now());
+
+            egressMau->apply(packet.get());
+            deparser->deparse(packet.get());// Invoke Deparser
+
+            // Trace the pkts drop in bmv2
+            bool flag_drop = TraceAllDropInBmv2(phv);
+            if (!flag_drop) {
+                    return 0; // the pkts drop, do nothing
+            }
+
+    //std::cout << "start: " << start.time_since_epoch().count() << std::endl;
+    std::cout << "bmv2: start: " << start.time_since_epoch().count() << "ingress: "
+         << ingress_ts.time_since_epoch().count() << "egress: "
+         << egress_ts.time_since_epoch().count() << std::endl;
+
+    // *************************Change bm::Packet to ns3::Packet***********************
+
+            void *bm2Buffer = packet.get()->data();
+            size_t bm2Length = packet.get()->get_data_size();
+            ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
+
+            // add the ByteTag of the ns3::packet (for tracing delay etc)
+            if (haveDJTag) {
+                    ns3Packet.AddByteTag(djtag);
+            }
+
+            Ptr<ns3::Packet> packetOut(&ns3Packet);
+            // ********************************************************************************
+            // request: the port of switch in ns3 = the port set in p4 json
+            m_pNetDevice->SendNs3Packet(packetOut, egressPort, protocol, destination);
+
+
+            return 0;
+    }
+
+    //NS_LOG_LOGIC("ERROR: Transfer ns::pkt to bm::pkt failed in P4Model::ReceivePacket.");
+    // return -1;
+    return 0;
+    */
 }
 
-bool P4Model::TraceAllDropInBmv2(bm::PHV *phv) {
-	/* the drop process usually done in QueueDisc, which is in the
-	* traffic-control module, and with "DropBeforeEnqueue" or 
-	* "DropAfterDequeue" etc. Also it gives may tools like traceing,
-	* drop recording etc. But here we just drop the pkts.
-	* 
-	* In p4, the drop should add a line before the mark_to_drop, for example:
-	* 		meta.drop = 1;      // add for connect ns-3 --> drop @ns3 
-	* 		mark_to_drop(standard_metadata);
-	* In ns-3, we maybe need to trace:
-	* 		scalars.userMetadata._drop18 // the name from json file data struct
-	* ideas comes from: ns3-PIFO-TM
-	* @todo mingyu
-	*/
+bool P4Model::TraceAllDropInBmv2(bm::PHV* phv)
+{
+    /* the drop process usually done in QueueDisc, which is in the
+     * traffic-control module, and with "DropBeforeEnqueue" or
+     * "DropAfterDequeue" etc. Also it gives may tools like traceing,
+     * drop recording etc. But here we just drop the pkts.
+     *
+     * In p4, the drop should add a line before the mark_to_drop, for example:
+     * 		meta.drop = 1;      // add for connect ns-3 --> drop @ns3
+     * 		mark_to_drop(standard_metadata);
+     * In ns-3, we maybe need to trace:
+     * 		scalars.userMetadata._drop18 // the name from json file data struct
+     * ideas comes from: ns3-PIFO-TM
+     * @todo mingyu
+     */
 
-	// The traced var name in bmv2, check the .json file get the name
-	const std::string switch_1_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop18";
-	const std::string switch_1_queue_Id = "userMetadata._ns3i_ns3_queue_id19";
-	const std::string switch_2_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop14";
-	const std::string switch_2_queue_Id = "userMetadata._ns3i_ns3_queue_id15";
+    // The traced var name in bmv2, check the .json file get the name
+    const std::string switch_1_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop18";
+    const std::string switch_1_queue_Id = "userMetadata._ns3i_ns3_queue_id19";
+    const std::string switch_2_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop14";
+    const std::string switch_2_queue_Id = "userMetadata._ns3i_ns3_queue_id15";
 
-	// the drop from switch 1 with codel1.p4
-	if (phv->has_field(switch_1_drop_Nr)) {
-		int mark_to_drop = phv->get_field(switch_1_drop_Nr).get_int();
-		if (mark_to_drop != 0) {
-			if (phv->has_field(switch_1_queue_Id)) {
-				int queue_id = phv->get_field(switch_1_queue_Id).get_int();
-				this->RecordAllDropInfo(queue_id); // Recored data
-			}
-			else {
-				this->m_dropNum++;
-				std::cout << "pkts passive droped in switch 1 bmv2-p4!" << std::endl;
-			}
-			return false; // drop in ns-3
-		}
-	}
+    // the drop from switch 1 with codel1.p4
+    if (phv->has_field(switch_1_drop_Nr)) {
+        int mark_to_drop = phv->get_field(switch_1_drop_Nr).get_int();
+        if (mark_to_drop != 0) {
+            if (phv->has_field(switch_1_queue_Id)) {
+                int queue_id = phv->get_field(switch_1_queue_Id).get_int();
+                this->RecordAllDropInfo(queue_id); // Recored data
+            } else {
+                this->m_dropNum++;
+                std::cout << "pkts passive droped in switch 1 bmv2-p4!" << std::endl;
+            }
+            return false; // drop in ns-3
+        }
+    }
 
-	// the drop from switch 2 with codel2.p4
-	if (phv->has_field(switch_2_drop_Nr)) {
-		int mark_to_drop = phv->get_field(switch_2_drop_Nr).get_int();
-		if (mark_to_drop != 0) {
-			if (phv->has_field(switch_2_queue_Id)) {
-				int queue_id = phv->get_field(switch_2_queue_Id).get_int();
-				this->RecordAllDropInfo(queue_id); // Recored data
-			}
-			else {
-				this->m_dropNum++;
-				std::cout << "pkts passive droped in switch 2 bmv2-p4!" << std::endl;
-			}
-			return false; // drop in ns-3
-		}
-	}
-	return true; // No drop in ns-3
+    // the drop from switch 2 with codel2.p4
+    if (phv->has_field(switch_2_drop_Nr)) {
+        int mark_to_drop = phv->get_field(switch_2_drop_Nr).get_int();
+        if (mark_to_drop != 0) {
+            if (phv->has_field(switch_2_queue_Id)) {
+                int queue_id = phv->get_field(switch_2_queue_Id).get_int();
+                this->RecordAllDropInfo(queue_id); // Recored data
+            } else {
+                this->m_dropNum++;
+                std::cout << "pkts passive droped in switch 2 bmv2-p4!" << std::endl;
+            }
+            return false; // drop in ns-3
+        }
+    }
+    return true; // No drop in ns-3
 }
 
-bool P4Model::RecordAllDropInfo(int queue_id) {
-	switch (queue_id) 
-	{
-		case 1:	{
-			this->m_qDropNum_1++;
-			break;
-		}
-		case 2: {
-			this->m_qDropNum_2++;
-			break;
-		}
-		case 3: {
-			this->m_qDropNum_3++;
-			break;
-		}
-		default: {
-			std::cout << "WARNING: No queue id, pkts initiative to be dropped in switch bmv2-p4!" << std::endl;
-			break;
-		}
-	}
-	return true;
+bool P4Model::RecordAllDropInfo(int queue_id)
+{
+    switch (queue_id) {
+    case 1: {
+        this->m_qDropNum_1++;
+        break;
+    }
+    case 2: {
+        this->m_qDropNum_2++;
+        break;
+    }
+    case 3: {
+        this->m_qDropNum_3++;
+        break;
+    }
+    default: {
+        std::cout << "WARNING: No queue id, pkts initiative to be dropped in switch bmv2-p4!" << std::endl;
+        break;
+    }
+    }
+    return true;
 }

@@ -103,6 +103,21 @@ class P4Model : public Switch {
 		
 		static TypeId GetTypeId(void);
 
+		std::vector<Address> destination_list;						//!< list for address, using by index
+		int address_num;											//!< index of address.
+		
+		void TranferNSPakcets(ns3::Packet packet, int port, 
+        	uint16_t protocol, int index);
+
+		struct ns3pack{
+			ns3::Packet m_packet;
+			int m_port;
+			uint16_t m_protocol;
+			int m_index;
+		};
+
+		std::queue<ns3pack> results_queue;
+
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
 		using TransmitFn = std::function<void(port_t, packet_id_t,
@@ -188,7 +203,7 @@ class P4Model : public Switch {
 		bool RecordAllDropInfo(int queue_id);
 	
 	private:
-		static constexpr size_t nb_egress_threads = 4u;
+		static constexpr size_t nb_egress_threads = 4u; // 4u default in bmv2, but in ns-3 make sure safe
 		static packet_id_t packet_id;
 
 		class MirroringSessions;
@@ -277,7 +292,7 @@ class P4Model : public Switch {
 		TracedValue<int64_t> m_qDropNum_2;        		//!< Number of the pkts drops in 2 queue
 		TracedValue<int64_t> m_qDropNum_3;        		//!< Number of the pkts drops in 3 queue
 		TracedValue<int64_t> m_dropNum;					//!< Number of the pkts drops (passive droped)
-	
+
 		bm::TargetParserBasic * m_argParser; 		//!< Structure of parsers
 
 		/**
