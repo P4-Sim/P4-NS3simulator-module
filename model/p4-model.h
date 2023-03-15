@@ -42,7 +42,7 @@
 #include <bm/bm_sim/tables.h>
 #include <bm/bm_sim/logger.h>
 #include <fstream>
-
+#include <mutex>
 #include <memory>
 #include <vector>
 #include <chrono>
@@ -106,8 +106,8 @@ class P4Model : public Switch {
 		std::vector<Address> destination_list;						//!< list for address, using by index
 		int address_num;											//!< index of address.
 		
-		void TranferNSPakcets(ns3::Packet packet, int port, 
-        	uint16_t protocol, int index);
+		/*void TranferNSPakcets(ns3::Packet packet, int port, 
+        	uint16_t protocol, int index);*/ // remove
 
 		struct ns3pack{
 			ns3::Packet m_packet;
@@ -117,6 +117,11 @@ class P4Model : public Switch {
 		};
 
 		std::queue<ns3pack> results_queue;
+
+		mutable std::mutex m_mutex;
+
+		int ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
+    		uint16_t protocol, Address const& destination);
 
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
@@ -133,7 +138,7 @@ class P4Model : public Switch {
 
 		static constexpr port_t default_drop_port = 511;
 		static constexpr size_t default_nb_queues_per_port = 8;		
-	
+
 	public:
 		// by default, swapping is off
 		P4Model(P4NetDevice* netDevice, 

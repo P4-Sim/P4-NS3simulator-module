@@ -141,6 +141,7 @@ void P4NetDevice::ReceiveFromDevice(Ptr<ns3::NetDevice> device,
 	
 	//Call P4Model receive packet, no return value
 	p4Model->ReceivePacket(ns3Packet, inPort, protocol, destination);
+	//p4Model->ReceivePacketOld(ns3Packet, inPort, protocol, destination);
 }
 
 void P4NetDevice::SendNs3Packet(ns3::Packet packet, int outPort, uint16_t protocol, Address const &destination)

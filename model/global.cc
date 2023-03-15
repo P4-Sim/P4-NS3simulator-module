@@ -28,7 +28,7 @@ namespace ns3 {
   std::string P4GlobalVar::g_flowTableDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"scratch-p4-file/flowtable/";
   
   unsigned int P4GlobalVar::g_nsType=P4Simulator;
-  unsigned int P4GlobalVar::g_runtimeCliTime=10;
+  unsigned int P4GlobalVar::g_runtimeCliTime=5;
   std::map<std::string,unsigned int> P4GlobalVar::g_nfStrUintMap;
 
   unsigned long getTickCount(void)

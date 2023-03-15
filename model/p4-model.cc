@@ -392,6 +392,7 @@ int P4Model::init(int argc, char* argv[])
         std::string cmd = "python /home/p4/p4simulator/src/bmv2-tools/run_bmv2_CLI --thrift_port "
             + std::to_string(port) + " " + P4GlobalVar::g_flowTablePath;
         std::system(cmd.c_str());
+        // bm_runtime::stop_server(); // 关闭bm_runtime服务
     } else {
         return -1;
     }
@@ -588,10 +589,6 @@ void P4Model::set_transmit_fn(TransmitFn fn)
 
 void P4Model::transmit_thread()
 {   
-    // temp values
-    uint16_t protocol;
-    int des_idx;
-    PHV* phv;
     // bmv2 packet
     while (1) {
         std::unique_ptr<bm::Packet> packet;
@@ -608,7 +605,28 @@ void P4Model::transmit_thread()
             packet->data(), packet->get_data_size());*/
     
         // get the protocol and desination Address for ns-3 @mingyu
-        phv = packet->get_phv();
+
+        PHV* phv = packet->get_phv();
+
+        uint16_t protocol;
+        if (phv->has_field("scalars.userMetadata._ns3i_protocol3")) {
+            protocol = phv->get_field("scalars.userMetadata._ns3i_protocol3").get_int();
+        }
+        int des_idx = 0;
+        if (phv->has_field("scalars.userMetadata._ns3i_destination4")) {
+            des_idx = phv->get_field("scalars.userMetadata._ns3i_destination4").get_int();    
+        }
+        int port = 0;
+        // take the port info into p4
+        /*if (phv->has_field("standard_metadata.egress_spec")) {
+            port = phv->get_field("standard_metadata.egress_spec").get_int();
+        }*/
+        if (phv->has_field("standard_metadata.egress_port")) {
+            port = phv->get_field("standard_metadata.egress_port").get_int();
+        }
+        std::cout << "port for pkts:" << port << std::endl;
+        // phv->get_field("standard_metadata.egress_port")
+        /*
         if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
             Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol20");
             protocol = f_mgid.get_uint();
@@ -620,7 +638,8 @@ void P4Model::transmit_thread()
             std::cout << "No protocol for sending ns-3 packet!" << std::endl;
             protocol = 0;
         }
-        
+
+        int des_idx = 0;
         if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
             des_idx = phv->get_field("scalars.userMetadata._ns3i_destination21").get_uint();
         } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
@@ -630,37 +649,45 @@ void P4Model::transmit_thread()
             std::cout << "No destnation for sending ns-3 packet!" << std::endl;
             des_idx = 0;
         }
-
-        std::cout << "after protocol " << protocol << "after dest: " << des_idx << std::endl;
         
+        int port = 0;
+        // take the port info into p4
+        if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
+            port = phv->get_field("scalars.userMetadata._ns3i_port22").get_uint();
+        } else if (phv->has_field("scalars.userMetadata._ns3i_port18")) {
+            port = phv->get_field("scalars.userMetadata._ns3i_port18").get_uint();
+        } else {
+            // warning
+            std::cout << "No port info for sending ns-3 packet!" << std::endl;
+        }
+        */
+
         // tranfer bmv2::packet to ns3::packet @mingyu
         void *bm2Buffer = packet.get()->data();
         size_t bm2Length = packet.get()->get_data_size();
-        ns3::Packet ns3Packet((uint8_t*)bm2Buffer, bm2Length);
+        ns3::Packet ns3Packet((uint8_t*)(bm2Buffer), bm2Length);
         //Ptr<ns3::Packet> packetOut(&ns3Packet);
-        int port  = packet->get_egress_port();
         
         // push into queue
-
+        m_mutex.lock();
         ns3pack pack_item = {ns3Packet, port, protocol, des_idx};
         results_queue.push(pack_item);
-
+        m_mutex.unlock();
         // CALL THE MAIN THREAD OF NS3 @mingyu
-        Time delay = NanoSeconds (1);  // 1 ns
-        Simulator::ScheduleWithContext (1, delay, &ns3::P4Model::TranferNSPakcets, ns3Packet, port, protocol, des_idx);
+        //Time delay = NanoSeconds (1);  // 1 ns
+        //Simulator::ScheduleWithContext (1, delay, &ns3::P4Model::TranferNSPakcets, ns3Packet, port, protocol, des_idx);
         // ERROR: incomplete type ‘ns3::EventMemberImplObjTraits<ns3::Packet>’ used in nested name specifier
         
         // Simulator::ScheduleNow (&ns3::P4Model::TranferNSPakcets, ns3Packet, port, protocol, des_idx);
-        
     }
 }
 
-void P4Model::TranferNSPakcets(ns3::Packet packet, int port, 
+/*void P4Model::TranferNSPakcets(ns3::Packet packet, int port, 
     uint16_t protocol, int index)
 {
     m_pNetDevice->SendNs3Packet(packet, port, protocol, destination_list[index]);
     std::cout << "success bmv2 -> ns3 recover." << std::endl;
-}
+}*/
 
 ts_res P4Model::get_ts() const
 {
@@ -1050,57 +1077,92 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     uint8_t* ns3Buffer = new uint8_t[ns3Length];
     packetIn->CopyData(ns3Buffer, ns3Length);
 
-    /*
-    // parse the ByteTag in ns3::packet (for tracing delay etc)
-    bool haveDJTag = false;
-    DelayJitterEstimationTimestampTag djtag;
-    if (packetIn->FindFirstMatchingByteTag(djtag)) {
-            haveDJTag = true;
-    }
-    */
-
-    // this->receive_(inPort, (char*)ns3Buffer, ns3Length);
-
     // we limit the packet buffer to original size + 512 bytes, which means we
     // cannot add more than 512 bytes of header data to the packet, which should
     // be more than enough
     std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
         ns3Length, bm::PacketBuffer(ns3Length + 512, (char*)ns3Buffer, ns3Length));
-    delete ns3Buffer;
+    delete[] ns3Buffer;
 
 #ifdef BMNANOMSG_ON
     BMELOG(packet_in, *packet);
 #endif
-    PHV* phv = packet->get_phv();
-    // many current P4 programs assume this
-    // it is also part of the original P4 spec
-    phv->reset_metadata();
-    RegisterAccess::clear_all(packet.get());
+    if (packet) {
+        PHV* phv = packet->get_phv();
+        int len = packet.get()->get_data_size();
+        packet.get()->set_ingress_port(inPort);
 
-    // setting standard metadata
-    phv->get_field("standard_metadata.ingress_port").set(inPort);
-    // using packet register 0 to store length, this register will be updated for
-    // each add_header / remove_header primitive call
-    packet->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX, ns3Length);
-    phv->get_field("standard_metadata.packet_length").set(ns3Length);
-    Field& f_instance_type = phv->get_field("standard_metadata.instance_type");
-    f_instance_type.set(PKT_INSTANCE_TYPE_NORMAL);
+        // many current P4 programs assume this
+        // it is also part of the original P4 spec
+        phv->reset_metadata();
+        RegisterAccess::clear_all(packet.get());
 
-    if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
-        phv->get_field("intrinsic_metadata.ingress_global_timestamp")
-            .set(get_ts().count());
+        // setting standard metadata
+        phv->get_field("standard_metadata.ingress_port").set(inPort);
+        // using packet register 0 to store length, this register will be updated for
+        // each add_header / remove_header primitive call
+        packet->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX, len);
+        phv->get_field("standard_metadata.packet_length").set(len);
+        Field& f_instance_type = phv->get_field("standard_metadata.instance_type");
+        f_instance_type.set(PKT_INSTANCE_TYPE_NORMAL);
+
+        if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
+            phv->get_field("intrinsic_metadata.ingress_global_timestamp")
+                .set(get_ts().count());
+        }
+
+        /* Record the ns3::protocol, ns3::destinatio into bm::packet, this is
+        useful, because after the 3 buffers and Ingress Egress loops, or resubmit/
+        recirculaiton etc, maybe bm::packet will get a different order. So I think
+        this situation can only be solved by adding additional information to
+        the bm::package. @mingyu
+        codel1:	_ns3i_protocol20; _ns3i_destination21
+        codel2: _ns3i_protocol16; _ns3i_destination17
+        */
+        
+        // test version
+        if (phv->has_field("scalars.userMetadata._ns3i_protocol3")) {
+            phv->get_field("scalars.userMetadata._ns3i_protocol3").set(protocol);
+        }
+        
+        int index_dest_address = 0;
+        if (std::find(destination_list.begin(), destination_list.end(), destination) == destination_list.end()){
+            destination_list.push_back(destination);
+            index_dest_address = destination_list.size() - 1;
+        }
+        else{
+            auto it = std::find(destination_list.begin(), destination_list.end(), destination);
+            index_dest_address = std::distance(destination_list.begin(), it);
+        }
+        // std::cout << "index of destadd: " << index_dest_address << " total list size: " << destination_list.size() << std::endl;
+        
+        if (phv->has_field("scalars.userMetadata._ns3i_destination4")) {
+            phv->get_field("scalars.userMetadata._ns3i_destination4").set(index_dest_address);
+        }
+
+        if (phv->has_field("scalars.userMetadata._ns3i_port5")) {
+            phv->get_field("scalars.userMetadata._ns3i_port5").set(inPort);
+        }
+        // put the bm::packet into buffer, and then goto the ingress loop.
+        input_buffer->push_front(
+            InputBuffer::PacketType::NORMAL, std::move(packet));
+
+        // here check the transfer queue if is null
+        m_mutex.lock();
+        // test twice clean queue
+        if (!results_queue.empty()){
+            ns3pack ns3pkt_item = results_queue.front();
+            m_pNetDevice->SendNs3Packet(ns3pkt_item.m_packet, ns3pkt_item.m_port, 
+                                        ns3pkt_item.m_protocol, destination_list[ns3pkt_item.m_index]);
+            results_queue.pop();
+        }
+        m_mutex.unlock();
+        
+        return 0;
     }
-
-    /* Record the ns3::protocol, ns3::destinatio into bm::packet, this is
-    useful, because after the 3 buffers and Ingress Egress loops, or resubmit/
-    recirculaiton etc, maybe bm::packet will get a different order. So I think
-    this situation can only be solved by adding additional information to
-    the bm::package. @mingyu
-    codel1:	_ns3i_protocol20; _ns3i_destination21
-    codel2: _ns3i_protocol16; _ns3i_destination17
-    */
-
-    if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
+    return -1;
+    
+    /*if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
         phv->get_field("scalars.userMetadata._ns3i_protocol20")
             .set(protocol);
     } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
@@ -1108,9 +1170,9 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             .set(protocol);
     } else {
         std::cout << "protocol set from ns3 -> bmv2 failed." << std::endl;
-    }
+    }*/
 
-    // test for debug
+    /*// test for debug
     int protocol_id = 0;
     if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
         Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol20");
@@ -1121,9 +1183,11 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     } else {
         std::cout << "protocol set from ns3 -> bmv2 failed." << std::endl;
     }
-    std::cout << "protocol_id value " << protocol_id << std::endl;
+    std::cout << "protocol_id value " << protocol_id << std::endl;*/
 
     // address saving and processing in ns-3 @mingyu
+    
+    /*
     int index_dest_address = 0;
     if (std::find(destination_list.begin(), destination_list.end(), destination) == destination_list.end()){
         destination_list.push_back(destination);
@@ -1147,109 +1211,78 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
     }
 
-    // put the bm::packet into buffer, and then goto the ingress loop.
-    input_buffer->push_front(
-        InputBuffer::PacketType::NORMAL, std::move(packet));
-    return 0;
-
-    // == P4Model::receive_(port_t port_num, const char* buffer, int len)
-
-    /*
-// we limit the packet buffer to original size + 512 bytes, which means we
-// cannot add more than 512 bytes of header data to the packet, which should
-// be more than enough
-    std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
-            ns3Length, bm::PacketBuffer(ns3Length + 512, (char*)ns3Buffer, ns3Length));
-    delete ns3Buffer;
-
-    // **************bm::Packet processing with phv ***************************
-    if (packet) {
-    auto start(std::chrono::high_resolution_clock::now());
-
-            int len = packet.get()->get_data_size();
-            packet.get()->set_ingress_port(inPort);
-            bm::PHV *phv = packet.get()->get_phv();
-
-    phv->reset_metadata();
-    // RegisterAccess::clear_all(packet.get()); // here we can not do the clear register.
-
-    // setting standard metadata
-
-            phv->get_field("standard_metadata.ingress_port").set(inPort);
-            phv->get_field("standard_metadata.packet_length").set(len);
-
-            if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
-                    phv->get_field("intrinsic_metadata.ingress_global_timestamp").set(0);
-            }
-
-
-            // time info required by codel alg
-            if (phv->has_field("standard_metadata.enq_timestamp")) {
-                    phv->get_field("standard_metadata.enq_timestamp").set(0);
-            }
-            if (phv->has_field("standard_metadata.deq_timedelta")) {
-                    phv->get_field("standard_metadata.deq_timedelta").set(0);
-            }
-
-
-            // Ingress
-            bm::Parser *parser = this->get_parser("parser");
-            bm::Pipeline *ingressMau = this->get_pipeline("ingress");
-            //phv = packet.get()->get_phv(); // duplicate reset for phv
-
-            parser->parse(packet.get()); //Invoke Parser
-            ingressMau->apply(packet.get()); //Invoke Match-Action
-            packet->reset_exit();
-
-    auto ingress_ts(std::chrono::high_resolution_clock::now());
-
-            // Egress
-            bm::Deparser *deparser = this->get_deparser("deparser");
-            bm::Pipeline *egressMau = this->get_pipeline("egress");
-            bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
-            int egressPort = fEgressSpec.get_int();
-            fEgressSpec.set(0);
-
-    auto egress_ts(std::chrono::high_resolution_clock::now());
-
-            egressMau->apply(packet.get());
-            deparser->deparse(packet.get());// Invoke Deparser
-
-            // Trace the pkts drop in bmv2
-            bool flag_drop = TraceAllDropInBmv2(phv);
-            if (!flag_drop) {
-                    return 0; // the pkts drop, do nothing
-            }
-
-    //std::cout << "start: " << start.time_since_epoch().count() << std::endl;
-    std::cout << "bmv2: start: " << start.time_since_epoch().count() << "ingress: "
-         << ingress_ts.time_since_epoch().count() << "egress: "
-         << egress_ts.time_since_epoch().count() << std::endl;
-
-    // *************************Change bm::Packet to ns3::Packet***********************
-
-            void *bm2Buffer = packet.get()->data();
-            size_t bm2Length = packet.get()->get_data_size();
-            ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
-
-            // add the ByteTag of the ns3::packet (for tracing delay etc)
-            if (haveDJTag) {
-                    ns3Packet.AddByteTag(djtag);
-            }
-
-            Ptr<ns3::Packet> packetOut(&ns3Packet);
-            // ********************************************************************************
-            // request: the port of switch in ns3 = the port set in p4 json
-            m_pNetDevice->SendNs3Packet(packetOut, egressPort, protocol, destination);
-
-
-            return 0;
+    // take the port info into p4
+    if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
+        phv->get_field("scalars.userMetadata._ns3i_port22")
+            .set(inPort);
+    } else if (phv->has_field("scalars.userMetadata._ns3i_port18")) {
+        phv->get_field("scalars.userMetadata._ns3i_port18")
+            .set(inPort);
+    } else {
+        // warning
+        std::cout << "destination port set from ns3 -> bmv2 failed." << std::endl;
     }
-
-    //NS_LOG_LOGIC("ERROR: Transfer ns::pkt to bm::pkt failed in P4Model::ReceivePacket.");
-    // return -1;
-    return 0;
     */
+}
+
+int P4Model::ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
+    		uint16_t protocol, Address const& destination)
+{
+    // **************Change ns3::Packet to bm::Packet***************************
+	int ns3Length = packetIn->GetSize();
+	uint8_t* ns3Buffer = new uint8_t[ns3Length];
+	packetIn->CopyData(ns3Buffer,ns3Length);
+	std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
+		ns3Length, bm::PacketBuffer(2048, (char*)ns3Buffer, ns3Length));
+	delete[] ns3Buffer;
+	// *************************************************************************
+	if (packet) {
+
+		int len = packet.get()->get_data_size();
+		packet.get()->set_ingress_port(inPort);
+		bm::PHV *phv = packet.get()->get_phv();
+		phv->reset_metadata();
+		phv->get_field("standard_metadata.ingress_port").set(inPort);
+		phv->get_field("standard_metadata.packet_length").set(len);
+
+		if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
+			phv->get_field("intrinsic_metadata.ingress_global_timestamp").set(0);
+		}
+
+		// Ingress
+		bm::Parser *parser = this->get_parser("parser");
+		bm::Pipeline *ingressMau = this->get_pipeline("ingress");
+		phv = packet.get()->get_phv();
+
+		parser->parse(packet.get());
+
+		ingressMau->apply(packet.get());
+
+		packet->reset_exit();
+
+		bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
+		int egressPort = fEgressSpec.get_int();
+
+		// Egress
+		bm::Deparser *deparser = this->get_deparser("deparser");
+		bm::Pipeline *egressMau = this->get_pipeline("egress");
+		fEgressSpec = phv->get_field("standard_metadata.egress_spec");
+		fEgressSpec.set(0);
+		egressMau->apply(packet.get());
+		deparser->deparse(packet.get());
+
+		// *************************Change bm::Packet to ns3::Packet***********************
+		void *bm2Buffer = packet.get()->data();
+		size_t bm2Length = packet.get()->get_data_size();
+		ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
+		//Ptr<ns3::Packet> packetOut(&ns3Packet);
+		// ********************************************************************************
+
+		m_pNetDevice->SendNs3Packet(ns3Packet, egressPort, protocol, destination);
+
+		return 0;
+	}
+	return -1;
 }
 
 bool P4Model::TraceAllDropInBmv2(bm::PHV* phv)
