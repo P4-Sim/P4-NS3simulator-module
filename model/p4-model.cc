@@ -603,107 +603,13 @@ void P4Model::transmit_thread()
         // default transmit function
         /*my_transmit_fn(packet->get_egress_port(), packet->get_packet_id(),
             packet->data(), packet->get_data_size());*/
-    
         // get the protocol and desination Address for ns-3 @mingyu
         
         m_mutex.lock();
         bm_queue.push(std::move(packet));
         m_mutex.unlock();
-
-        /*
-        PHV* phv = packet->get_phv();
-
-        uint16_t protocol;
-        if (phv->has_field("scalars.userMetadata._ns3i_protocol3")) {
-            protocol = phv->get_field("scalars.userMetadata._ns3i_protocol3").get_int();
-        }
-        int des_idx = 0;
-        if (phv->has_field("scalars.userMetadata._ns3i_destination4")) {
-            des_idx = phv->get_field("scalars.userMetadata._ns3i_destination4").get_int();    
-        }
-        int port = 0;
-        // take the port info into p4
-        if (phv->has_field("standard_metadata.egress_spec")) {
-            port = phv->get_field("standard_metadata.egress_spec").get_int();
-        }
-        if (phv->has_field("standard_metadata.egress_port")) {
-            port = phv->get_field("standard_metadata.egress_port").get_int();
-        }
-        std::cout << "@mingyu after bmv2 port: " << port << " protocol " << protocol << " idx " << des_idx << std::endl;
-        */
-        // phv->get_field("standard_metadata.egress_port")
-        
-        
-        /*
-        if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
-            Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol20");
-            protocol = f_mgid.get_uint();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
-            Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol16");
-            protocol = f_mgid.get_uint();
-        } else {
-            // warning
-            std::cout << "No protocol for sending ns-3 packet!" << std::endl;
-            protocol = 0;
-        }
-
-        int des_idx = 0;
-        if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
-            des_idx = phv->get_field("scalars.userMetadata._ns3i_destination21").get_uint();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
-            des_idx = phv->get_field("scalars.userMetadata._ns3i_destination17").get_uint();
-        } else {
-            // warning
-            std::cout << "No destnation for sending ns-3 packet!" << std::endl;
-            des_idx = 0;
-        }
-        
-        int port = 0;
-        // take the port info into p4
-        if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
-            port = phv->get_field("scalars.userMetadata._ns3i_port22").get_uint();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_port18")) {
-            port = phv->get_field("scalars.userMetadata._ns3i_port18").get_uint();
-        } else {
-            // warning
-            std::cout << "No port info for sending ns-3 packet!" << std::endl;
-        }
-        */
-
-        /*
-        m_mutex.lock();
-        bmpack pack_item = {std::move(packet), port, protocol, des_idx};
-        bm_queue.push(pack_item);
-        m_mutex.unlock();
-        */
-
-
-        /*// tranfer bmv2::packet to ns3::packet @mingyu
-        void *bm2Buffer = packet.get()->data();
-        size_t bm2Length = packet.get()->get_data_size();
-        ns3::Packet ns3Packet((uint8_t*)(bm2Buffer), bm2Length);
-        //Ptr<ns3::Packet> packetOut(&ns3Packet);
-        
-        // push into queue
-        m_mutex.lock();
-        ns3pack pack_item = {ns3Packet, port, protocol, des_idx};
-        results_queue.push(pack_item);
-        m_mutex.unlock();*/
-        // CALL THE MAIN THREAD OF NS3 @mingyu
-        //Time delay = NanoSeconds (1);  // 1 ns
-        //Simulator::ScheduleWithContext (1, delay, &ns3::P4Model::TranferNSPakcets, ns3Packet, port, protocol, des_idx);
-        // ERROR: incomplete type ‘ns3::EventMemberImplObjTraits<ns3::Packet>’ used in nested name specifier
-        
-        // Simulator::ScheduleNow (&ns3::P4Model::TranferNSPakcets, ns3Packet, port, protocol, des_idx);
     }
 }
-
-/*void P4Model::TranferNSPakcets(ns3::Packet packet, int port, 
-    uint16_t protocol, int index)
-{
-    m_pNetDevice->SendNs3Packet(packet, port, protocol, destination_list[index]);
-    std::cout << "success bmv2 -> ns3 recover." << std::endl;
-}*/
 
 ts_res P4Model::get_ts() const
 {
@@ -1127,7 +1033,8 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
                 .set(get_ts().count());
         }
 
-        /* Record the ns3::protocol, ns3::destinatio into bm::packet, this is
+        /* ==========================new==================================================== 
+        Record the ns3::protocol, ns3::destinatio into bm::packet, this is
         useful, because after the 3 buffers and Ingress Egress loops, or resubmit/
         recirculaiton etc, maybe bm::packet will get a different order. So I think
         this situation can only be solved by adding additional information to
@@ -1136,11 +1043,16 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         codel2: _ns3i_protocol16; _ns3i_destination17
         */
         
-        // test version
-        if (phv->has_field("scalars.userMetadata._ns3i_protocol3")) {
-            phv->get_field("scalars.userMetadata._ns3i_protocol3").set(protocol);
+        //==========================protocol==========================
+        if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
+            phv->get_field("scalars.userMetadata._ns3i_protocol20").set(protocol);
+        } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
+            phv->get_field("scalars.userMetadata._ns3i_protocol16").set(protocol);
+        } else {
+            std::cout << "protocol set from ns3 -> bmv2 failed." << std::endl;
         }
-        
+
+        // ==========================address==========================
         int index_dest_address = 0;
         if (std::find(destination_list.begin(), destination_list.end(), destination) == destination_list.end()){
             destination_list.push_back(destination);
@@ -1150,23 +1062,38 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             auto it = std::find(destination_list.begin(), destination_list.end(), destination);
             index_dest_address = std::distance(destination_list.begin(), it);
         }
-        // std::cout << "index of destadd: " << index_dest_address << " total list size: " << destination_list.size() << std::endl;
-        
-        if (phv->has_field("scalars.userMetadata._ns3i_destination4")) {
-            phv->get_field("scalars.userMetadata._ns3i_destination4").set(index_dest_address);
+
+        if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
+            phv->get_field("scalars.userMetadata._ns3i_destination21")
+                .set(index_dest_address);
+        } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
+            phv->get_field("scalars.userMetadata._ns3i_destination17")
+                .set(index_dest_address);
+        } else {
+            // warning
+            std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
         }
 
-        if (phv->has_field("scalars.userMetadata._ns3i_port5")) {
-            phv->get_field("scalars.userMetadata._ns3i_port5").set(inPort);
+        // ========================== port info==========================
+        if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
+            phv->get_field("scalars.userMetadata._ns3i_port22")
+                .set(inPort);
+        } else if (phv->has_field("scalars.userMetadata._ns3i_port18")) {
+            phv->get_field("scalars.userMetadata._ns3i_port18")
+                .set(inPort);
+        } else {
+            // warning
+            std::cout << "destination port set from ns3 -> bmv2 failed." << std::endl;
         }
 
         //std::cout << "@mingyu before bmv2 protocol " << protocol << " idx " << index_dest_address << std::endl;
 
         // put the bm::packet into buffer, and then goto the ingress loop.
+        // ==================================give to ingress Thread==================================
         input_buffer->push_front(
             InputBuffer::PacketType::NORMAL, std::move(packet));
  
-        // ======================================== back ============================================
+        // ===========================the pkts comes out from bmv2 and rein ns-3 ============================================
         bool tex_flag = false;
         std::unique_ptr<bm::Packet> bmpkt;
 
@@ -1181,23 +1108,34 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         if (tex_flag) {
             // 存在处理的消息
             PHV* phv = bmpkt->get_phv();
-
+            
+            // 这里的数据时需要根据不同的p4-json文件而修改，目前还没有太好的解决的方法（时间原因）
             uint16_t protocol;
-            if (phv->has_field("scalars.userMetadata._ns3i_protocol3")) {
-                protocol = phv->get_field("scalars.userMetadata._ns3i_protocol3").get_int();
+            if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
+                protocol = phv->get_field("scalars.userMetadata._ns3i_protocol20").get_int();
+            } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
+                protocol = phv->get_field("scalars.userMetadata._ns3i_protocol16").get_int();
+            } else {
+                std::cout << "No protocol for sending ns-3 packet!" << std::endl;
+                protocol = 0;
             }
+
             int des_idx = 0;
-            if (phv->has_field("scalars.userMetadata._ns3i_destination4")) {
-                des_idx = phv->get_field("scalars.userMetadata._ns3i_destination4").get_int();    
+            if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
+                des_idx = phv->get_field("scalars.userMetadata._ns3i_destination21").get_int();
+            } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
+                des_idx = phv->get_field("scalars.userMetadata._ns3i_destination17").get_int();
+            } else {
+                std::cout << "No destnation for sending ns-3 packet!" << std::endl;
+                des_idx = 0;
             }
+                
             int port = 0;
-            // take the port info into p4
-            if (phv->has_field("standard_metadata.egress_spec")) {
-                port = phv->get_field("standard_metadata.egress_spec").get_int();
-            }
+            // take the port info into p4, here the port using egress_port
             if (phv->has_field("standard_metadata.egress_port")) {
                 port = phv->get_field("standard_metadata.egress_port").get_int();
             }
+
             //std::cout << "@mingyu after bmv2 port: " << port << " protocol " << protocol << " idx " << des_idx << std::endl;
             // phv->get_field("standard_metadata.egress_port")
 
@@ -1206,109 +1144,12 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
             //Ptr<ns3::Packet> packetOut(&ns3Packet);
 
-            // === send out
+            // ===================================== send out==================================
             m_pNetDevice->SendNs3Packet(ns3Packet, port, protocol, destination_list[des_idx]);            
-        }
-    
-        /*
-        if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
-            Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol20");
-            protocol = f_mgid.get_uint();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
-            Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol16");
-            protocol = f_mgid.get_uint();
-        } else {
-            // warning
-            std::cout << "No protocol for sending ns-3 packet!" << std::endl;
-            protocol = 0;
-        }
-
-        int des_idx = 0;
-        if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
-            des_idx = phv->get_field("scalars.userMetadata._ns3i_destination21").get_uint();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
-            des_idx = phv->get_field("scalars.userMetadata._ns3i_destination17").get_uint();
-        } else {
-            // warning
-            std::cout << "No destnation for sending ns-3 packet!" << std::endl;
-            des_idx = 0;
-        }
-        
-        int port = 0;
-        // take the port info into p4
-        if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
-            port = phv->get_field("scalars.userMetadata._ns3i_port22").get_uint();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_port18")) {
-            port = phv->get_field("scalars.userMetadata._ns3i_port18").get_uint();
-        } else {
-            // warning
-            std::cout << "No port info for sending ns-3 packet!" << std::endl;
-        }*/
+        }   
         return 0;
     }
     return -1;
-    
-    /*if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
-        phv->get_field("scalars.userMetadata._ns3i_protocol20")
-            .set(protocol);
-    } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
-        phv->get_field("scalars.userMetadata._ns3i_protocol16")
-            .set(protocol);
-    } else {
-        std::cout << "protocol set from ns3 -> bmv2 failed." << std::endl;
-    }*/
-
-    /*// test for debug
-    int protocol_id = 0;
-    if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
-        Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol20");
-            protocol_id = f_mgid.get_int();
-    } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
-        Field &f_mgid = phv->get_field("scalars.userMetadata._ns3i_protocol16");
-            protocol_id = f_mgid.get_int();
-    } else {
-        std::cout << "protocol set from ns3 -> bmv2 failed." << std::endl;
-    }
-    std::cout << "protocol_id value " << protocol_id << std::endl;*/
-
-    // address saving and processing in ns-3 @mingyu
-    
-    /*
-    int index_dest_address = 0;
-    if (std::find(destination_list.begin(), destination_list.end(), destination) == destination_list.end()){
-        destination_list.push_back(destination);
-        index_dest_address = destination_list.size() - 1;
-    }
-    else{
-        auto it = std::find(destination_list.begin(), destination_list.end(), destination);
-        index_dest_address = std::distance(destination_list.begin(), it);
-    }
-    std::cout << "index of destadd: " << index_dest_address << " total list size: " << destination_list.size() << std::endl;
-
-    // address index insert with p4 packages @mingyu
-    if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
-        phv->get_field("scalars.userMetadata._ns3i_destination21")
-            .set(index_dest_address);
-    } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
-        phv->get_field("scalars.userMetadata._ns3i_destination17")
-            .set(index_dest_address);
-    } else {
-        // warning
-        std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
-    }
-
-    // take the port info into p4
-    if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
-        phv->get_field("scalars.userMetadata._ns3i_port22")
-            .set(inPort);
-    } else if (phv->has_field("scalars.userMetadata._ns3i_port18")) {
-        phv->get_field("scalars.userMetadata._ns3i_port18")
-            .set(inPort);
-    } else {
-        // warning
-        std::cout << "destination port set from ns3 -> bmv2 failed." << std::endl;
-    }
-    */
 }
 
 int P4Model::ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,

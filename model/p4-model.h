@@ -106,18 +106,7 @@ class P4Model : public Switch {
 		std::vector<Address> destination_list;						//!< list for address, using by index
 		int address_num;											//!< index of address.
 		
-		/*void TranferNSPakcets(ns3::Packet packet, int port, 
-        	uint16_t protocol, int index);*/ // remove
-
-		/*struct ns3pack{
-			ns3::Packet m_packet;
-			int m_port;
-			uint16_t m_protocol;
-			int m_index;
-		};*/
-		
-		std::queue<std::unique_ptr<bm::Packet>> bm_queue;
-		// std::queue<ns3pack> results_queue;
+		std::queue<std::unique_ptr<bm::Packet>> bm_queue;			//!< SYNC infomation Queue
 
 		mutable std::mutex m_mutex;
 
