@@ -109,14 +109,15 @@ class P4Model : public Switch {
 		/*void TranferNSPakcets(ns3::Packet packet, int port, 
         	uint16_t protocol, int index);*/ // remove
 
-		struct ns3pack{
+		/*struct ns3pack{
 			ns3::Packet m_packet;
 			int m_port;
 			uint16_t m_protocol;
 			int m_index;
-		};
-
-		std::queue<ns3pack> results_queue;
+		};*/
+		
+		std::queue<std::unique_ptr<bm::Packet>> bm_queue;
+		// std::queue<ns3pack> results_queue;
 
 		mutable std::mutex m_mutex;
 
@@ -270,27 +271,6 @@ class P4Model : public Switch {
 		std::chrono::high_resolution_clock::time_point start;
 		bool with_queueing_metadata{false};
 		std::unique_ptr<MirroringSessions> mirroring_sessions;
-
-		/**
-		* \brief Transform a ns::packet and a bm::packet
-		*
-		* To use the P4 pipeline provided by Behavioral Model, input
-		* packet must be conform the bm style. Also we preserve the
-		* ingress port information here.
-		*
-		* Called when receive a packet from P4 Device.
-		*
-		* \param ns3packet A `ns::Packet` instance
-		* \return A `bm::Packet` instance transformed from a ns::Packet instance.
-		*/
-		//struct Bm2PacketAndPort * Ns3ToBmv2(struct Ns3PacketAndPort * ns3Packet);
-
-		/**
-		* \brief Transform a bm::packet and a ns::packet
-		*
-		* Called when putting a packet back to the P4 Device.
-		*/
-		//struct Ns3PacketAndPort * Bmv2ToNs3(struct Bm2PacketAndPort *);
 
 		int m_pktID = 0;								//!< Packet ID
 		TracedValue<int64_t> m_qDropNum_1;        		//!< Number of the pkts drops in 1 queue
