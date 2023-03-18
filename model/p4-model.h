@@ -107,6 +107,7 @@ class P4Model : public Switch {
 		int address_num;											//!< index of address.
 		
 		std::queue<std::unique_ptr<bm::Packet>> bm_queue;			//!< SYNC infomation Queue
+		std::queue<std::unique_ptr<bm::Packet>> re_bm_queue;		//!< re_bm_queue for saving pkts from bm_queue
 
 		mutable std::mutex m_mutex;
 

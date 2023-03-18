@@ -1094,19 +1094,21 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             InputBuffer::PacketType::NORMAL, std::move(packet));
  
         // ===========================the pkts comes out from bmv2 and rein ns-3 ============================================
-        bool tex_flag = false;
         std::unique_ptr<bm::Packet> bmpkt;
 
         m_mutex.lock();
-        if (!bm_queue.empty()){
+        while(!bm_queue.empty()) {
             bmpkt = std::move(bm_queue.front());  // unique ptr move
-            tex_flag = true;
+            re_bm_queue.push(std::move(bmpkt));
             bm_queue.pop();
         }
         m_mutex.unlock();
 
-        if (tex_flag) {
+        while(!re_bm_queue.empty()) {
             // 存在处理的消息
+            bmpkt = std::move(re_bm_queue.front());  // unique ptr move
+            re_bm_queue.pop();
+
             PHV* phv = bmpkt->get_phv();
             
             // 这里的数据时需要根据不同的p4-json文件而修改，目前还没有太好的解决的方法（时间原因）
