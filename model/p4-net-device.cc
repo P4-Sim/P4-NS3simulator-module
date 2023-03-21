@@ -118,6 +118,11 @@ P4NetDevice::P4NetDevice() :
 	NS_LOG_LOGIC("A P4 Netdevice was initialized.");
 }
 
+P4Model* P4NetDevice::GetP4Model()
+{
+	return p4Model;
+}
+
 void P4NetDevice::ReceiveFromDevice(Ptr<ns3::NetDevice> device,
 	Ptr<const ns3::Packet> packetIn, uint16_t protocol,
 	Address const &source, Address const &destination,
@@ -144,9 +149,8 @@ void P4NetDevice::ReceiveFromDevice(Ptr<ns3::NetDevice> device,
 	//p4Model->ReceivePacketOld(ns3Packet, inPort, protocol, destination);
 }
 
-void P4NetDevice::SendNs3Packet(ns3::Packet packet, int outPort, uint16_t protocol, Address const &destination)
+void P4NetDevice::SendNs3Packet(Ptr<ns3::Packet> packetOut, int outPort, uint16_t protocol, Address const &destination)
 {
-	Ptr<ns3::Packet> packetOut = &packet;
 	if (packetOut)
 	{
 		EthernetHeader eeh;

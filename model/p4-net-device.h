@@ -97,7 +97,9 @@ namespace ns3 {
 		*/
 		bool SendPacket(Ptr<Packet> packet, Ptr<NetDevice>outDevice);
 		bool SendPacket(Ptr<Packet> packet, const Address& dest, Ptr<NetDevice>outDevice);
-		void SendNs3Packet(ns3::Packet packetOut, int outPort, uint16_t protocol, Address const &destination);
+		void SendNs3Packet(Ptr<ns3::Packet> packetOut, int outPort, uint16_t protocol, Address const &destination);
+
+		P4Model* GetP4Model();
 
 		/**
 		* \brief Forwards a broadcast or a multicast packet

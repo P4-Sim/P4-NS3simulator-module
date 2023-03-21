@@ -32,6 +32,7 @@
 #include "ns3/integer.h"
 #include "ns3/uinteger.h"
 #include "ns3/traced-value.h"
+#include "ns3/delay-jitter-estimation.h"
 #include <bm/bm_sim/queue.h>
 #include <bm/bm_sim/queueing.h>
 #include <bm/bm_sim/packet.h>
@@ -109,10 +110,16 @@ class P4Model : public Switch {
 		std::queue<std::unique_ptr<bm::Packet>> bm_queue;			//!< SYNC infomation Queue
 		std::queue<std::unique_ptr<bm::Packet>> re_bm_queue;		//!< re_bm_queue for saving pkts from bm_queue
 
+		std::queue<bool> tag_bool_queue;
+		std::queue<DelayJitterEstimationTimestampTag> tag_queue;
+
 		mutable std::mutex m_mutex;
 
 		int ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
     		uint16_t protocol, Address const& destination);
+
+		void SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
+		std::string dest1, std::string dest2);
 
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
@@ -263,6 +270,7 @@ class P4Model : public Switch {
 		std::unique_ptr<MirroringSessions> mirroring_sessions;
 
 		int m_pktID = 0;								//!< Packet ID
+		int m_re_pktID = 0;
 		TracedValue<int64_t> m_qDropNum_1;        		//!< Number of the pkts drops in 1 queue
 		TracedValue<int64_t> m_qDropNum_2;        		//!< Number of the pkts drops in 2 queue
 		TracedValue<int64_t> m_qDropNum_3;        		//!< Number of the pkts drops in 3 queue

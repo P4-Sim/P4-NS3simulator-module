@@ -589,6 +589,8 @@ void P4Model::set_transmit_fn(TransmitFn fn)
 
 void P4Model::transmit_thread()
 {   
+    // local 
+    // int x_id = 1; // 包的id名字，使用m_pktID不知道会受到线程不同步的影响，可以ns3收到了4，但是这里出的包是1.(常常这样)
     // bmv2 packet
     while (1) {
         std::unique_ptr<bm::Packet> packet;
@@ -608,6 +610,10 @@ void P4Model::transmit_thread()
         m_mutex.lock();
         bm_queue.push(std::move(packet));
         m_mutex.unlock();
+
+        ts_res times = get_ts();
+        // @mingyu std::cout
+        // std::cout << "Emu The out pkts " << x_id++ << " : " << times.count() << " in " << this << std::endl;
     }
 }
 
@@ -999,6 +1005,16 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     uint8_t* ns3Buffer = new uint8_t[ns3Length];
     packetIn->CopyData(ns3Buffer, ns3Length);
 
+    // parse the ByteTag in ns3::packet (for tracing delay etc)
+	DelayJitterEstimationTimestampTag djtag;
+	if (packetIn->FindFirstMatchingByteTag(djtag)) {
+		tag_bool_queue.push(true);
+        tag_queue.push(djtag);
+	}
+    else {
+        tag_bool_queue.push(false);
+    }
+
     // we limit the packet buffer to original size + 512 bytes, which means we
     // cannot add more than 512 bytes of header data to the packet, which should
     // be more than enough
@@ -1028,9 +1044,10 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         Field& f_instance_type = phv->get_field("standard_metadata.instance_type");
         f_instance_type.set(PKT_INSTANCE_TYPE_NORMAL);
 
+        ts_res times = get_ts();
         if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
             phv->get_field("intrinsic_metadata.ingress_global_timestamp")
-                .set(get_ts().count());
+                .set(times.count());
         }
 
         /* ==========================new==================================================== 
@@ -1074,8 +1091,8 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
         }
 
-        // ========================== port info==========================
-        if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
+        // =NO need now========================= port info==========================
+        /*if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
             phv->get_field("scalars.userMetadata._ns3i_port22")
                 .set(inPort);
         } else if (phv->has_field("scalars.userMetadata._ns3i_port18")) {
@@ -1084,74 +1101,87 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         } else {
             // warning
             std::cout << "destination port set from ns3 -> bmv2 failed." << std::endl;
-        }
+        }*/
 
-        //std::cout << "@mingyu before bmv2 protocol " << protocol << " idx " << index_dest_address << std::endl;
-
-        // put the bm::packet into buffer, and then goto the ingress loop.
         // ==================================give to ingress Thread==================================
+        
         input_buffer->push_front(
             InputBuffer::PacketType::NORMAL, std::move(packet));
- 
-        // ===========================the pkts comes out from bmv2 and rein ns-3 ============================================
-        std::unique_ptr<bm::Packet> bmpkt;
-
-        m_mutex.lock();
-        while(!bm_queue.empty()) {
-            bmpkt = std::move(bm_queue.front());  // unique ptr move
-            re_bm_queue.push(std::move(bmpkt));
-            bm_queue.pop();
-        }
-        m_mutex.unlock();
-
-        while(!re_bm_queue.empty()) {
-            // 存在处理的消息
-            bmpkt = std::move(re_bm_queue.front());  // unique ptr move
-            re_bm_queue.pop();
-
-            PHV* phv = bmpkt->get_phv();
-            
-            // 这里的数据时需要根据不同的p4-json文件而修改，目前还没有太好的解决的方法（时间原因）
-            uint16_t protocol;
-            if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
-                protocol = phv->get_field("scalars.userMetadata._ns3i_protocol20").get_int();
-            } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
-                protocol = phv->get_field("scalars.userMetadata._ns3i_protocol16").get_int();
-            } else {
-                std::cout << "No protocol for sending ns-3 packet!" << std::endl;
-                protocol = 0;
-            }
-
-            int des_idx = 0;
-            if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
-                des_idx = phv->get_field("scalars.userMetadata._ns3i_destination21").get_int();
-            } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
-                des_idx = phv->get_field("scalars.userMetadata._ns3i_destination17").get_int();
-            } else {
-                std::cout << "No destnation for sending ns-3 packet!" << std::endl;
-                des_idx = 0;
-            }
-                
-            int port = 0;
-            // take the port info into p4, here the port using egress_port
-            if (phv->has_field("standard_metadata.egress_port")) {
-                port = phv->get_field("standard_metadata.egress_port").get_int();
-            }
-
-            //std::cout << "@mingyu after bmv2 port: " << port << " protocol " << protocol << " idx " << des_idx << std::endl;
-            // phv->get_field("standard_metadata.egress_port")
-
-            void *bm2Buffer = bmpkt.get()->data();
-            size_t bm2Length = bmpkt.get()->get_data_size();
-            ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
-            //Ptr<ns3::Packet> packetOut(&ns3Packet);
-
-            // ===================================== send out==================================
-            m_pNetDevice->SendNs3Packet(ns3Packet, port, protocol, destination_list[des_idx]);            
-        }   
+        // @mingyu std::cout
+        // std::cout << "The pkts " << m_pktID << " : " << Simulator::Now () << " in " << this << std::endl;
+        // std::cout << "Emu The in pkts " << m_pktID << " : " << times.count() << " in " << this << std::endl;
         return 0;
     }
     return -1;
+}
+
+void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
+		std::string dest1, std::string dest2)
+{
+    // this will be called by users hand
+    while(!re_bm_queue.empty()) {
+        std::unique_ptr<bm::Packet> bmpkt;
+        // 存在处理的消息
+        bmpkt = std::move(re_bm_queue.front());  // unique ptr move
+        re_bm_queue.pop();
+
+        m_re_pktID++;  // 更新接受包的ID号码，方便和发送ID号比对
+
+        PHV* phv = bmpkt->get_phv();
+        
+        // 这里的数据时需要根据不同的p4-json文件而修改，目前还没有太好的解决的方法（时间原因）
+        // "scalars.userMetadata._ns3i_protocol20" proto1
+        // "scalars.userMetadata._ns3i_protocol16" proto2
+        uint16_t protocol;
+        if (phv->has_field(proto1)) {
+            protocol = phv->get_field(proto1).get_int();
+        } else if (phv->has_field(proto2)) {
+            protocol = phv->get_field(proto2).get_int();
+        } else {
+            std::cout << "No protocol for sending ns-3 packet!" << std::endl;
+            protocol = 0;
+        }
+        
+        // dest1 "scalars.userMetadata._ns3i_destination21"
+        // dest2 "scalars.userMetadata._ns3i_destination17"
+        int des_idx = 0;
+        if (phv->has_field(dest1)) {
+            des_idx = phv->get_field(dest1).get_int();
+        } else if (phv->has_field(dest2)) {
+            des_idx = phv->get_field(dest2).get_int();
+        } else {
+            std::cout << "No destnation for sending ns-3 packet!" << std::endl;
+            des_idx = 0;
+        }
+            
+        int port = 0;
+        // take the port info into p4, here the port using egress_port
+        if (phv->has_field("standard_metadata.egress_port")) {
+            port = phv->get_field("standard_metadata.egress_port").get_int();
+        }
+
+        //std::cout << "@mingyu after bmv2 port: " << port << " protocol " << protocol << " idx " << des_idx << std::endl;
+        // phv->get_field("standard_metadata.egress_port")
+
+        void *bm2Buffer = bmpkt.get()->data();
+        size_t bm2Length = bmpkt.get()->get_data_size();
+        ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
+
+        // add the ByteTag of the ns3::packet (for tracing delay etc)
+        bool first = tag_bool_queue.front();
+        if (first) {
+            ns3Packet.AddByteTag(tag_queue.front());
+            tag_queue.pop(); // pop one
+        }
+        tag_bool_queue.pop(); // pop one
+        
+        Ptr<ns3::Packet> packetOut(&ns3Packet);
+
+        // ===================================== send out==================================
+        m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
+        // @mingyu std::cout
+        // std::cout << "The re pkts " << m_re_pktID << " : " << Simulator::Now () << " in " << this <<  std::endl;
+    }
 }
 
 int P4Model::ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
@@ -1204,10 +1234,10 @@ int P4Model::ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
 		void *bm2Buffer = packet.get()->data();
 		size_t bm2Length = packet.get()->get_data_size();
 		ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
-		//Ptr<ns3::Packet> packetOut(&ns3Packet);
+		Ptr<ns3::Packet> packetOut(&ns3Packet);
 		// ********************************************************************************
 
-		m_pNetDevice->SendNs3Packet(ns3Packet, egressPort, protocol, destination);
+		m_pNetDevice->SendNs3Packet(packetOut, egressPort, protocol, destination);
 
 		return 0;
 	}
