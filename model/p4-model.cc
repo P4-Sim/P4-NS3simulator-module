@@ -325,7 +325,10 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     import_primitives();
 
     // ns3 settings init @mingyu
-    address_num = 0; 
+    address_num = 0;
+
+    static int switch_id = 1;
+    p4_switch_ID = switch_id++;
 }
 
 int P4Model::init(int argc, char* argv[])
@@ -589,8 +592,6 @@ void P4Model::set_transmit_fn(TransmitFn fn)
 
 void P4Model::transmit_thread()
 {   
-    // local 
-    // int x_id = 1; // 包的id名字，使用m_pktID不知道会受到线程不同步的影响，可以ns3收到了4，但是这里出的包是1.(常常这样)
     // bmv2 packet
     while (1) {
         std::unique_ptr<bm::Packet> packet;
@@ -602,18 +603,36 @@ void P4Model::transmit_thread()
         BMLOG_DEBUG_PKT(*packet, "Transmitting packet of size {} out of port {}",
             packet->get_data_size(), packet->get_egress_port());
 #endif  
+        // =======================@mingyu std::cout=======================
+        
+        /*int priority = -1;
+        PHV* phv = packet->get_phv();
+        if (phv->has_field("standard_metadata.priority")) {
+            priority = phv->get_field("standard_metadata.priority").get_int();
+        }
+
+        int src_pkt_id = 0;
+        if (phv->has_field("scalars.userMetadata._ns3i_pkts_id22")) {
+            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id22").get_int();
+        } else if (phv->has_field("scalars.userMetadata._ns3i_pkts_id18")) {
+            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id18").get_int();
+        } else {
+            std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+        }
+
+        ts_res times = get_ts();
+        std::cout << "EmuOut," << src_pkt_id << "," << priority << "," << times.count() << "," << p4_switch_ID << std::endl;
+        */
+
+        // ======================= transmit =======================
+        
         // default transmit function
         /*my_transmit_fn(packet->get_egress_port(), packet->get_packet_id(),
             packet->data(), packet->get_data_size());*/
         // get the protocol and desination Address for ns-3 @mingyu
-        
         m_mutex.lock();
         bm_queue.push(std::move(packet));
         m_mutex.unlock();
-
-        ts_res times = get_ts();
-        // @mingyu std::cout
-        // std::cout << "Emu The out pkts " << x_id++ << " : " << times.count() << " in " << this << std::endl;
     }
 }
 
@@ -639,6 +658,8 @@ void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
         bm::Logger::get()->error("Priority out of range, dropping packet");
         return;
     }
+    // here push into the queue, if set the queue process rate for pkts with priority,
+    // they maybe will drop if the queue is full for one priority.
     egress_buffers.push_front(
         egress_port, nb_queues_per_port - 1 - priority,
         std::move(packet));
@@ -898,7 +919,7 @@ void P4Model::egress_thread(size_t worker_id)
                 qid_f.set(nb_queues_per_port - 1 - priority);
             }
         }
-
+ 
         phv->get_field("standard_metadata.egress_port").set(port);
 
         Field& f_egress_spec = phv->get_field("standard_metadata.egress_spec");
@@ -1006,14 +1027,12 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     packetIn->CopyData(ns3Buffer, ns3Length);
 
     // parse the ByteTag in ns3::packet (for tracing delay etc)
-	DelayJitterEstimationTimestampTag djtag;
-	if (packetIn->FindFirstMatchingByteTag(djtag)) {
-		tag_bool_queue.push(true);
-        tag_queue.push(djtag);
+    DelayJitterEstimationTimestampTag djtag;
+    if (packetIn->FindFirstMatchingByteTag(djtag)) {
+        m_queue_mutex.lock();
+		tag_map.insert (std::pair<int, DelayJitterEstimationTimestampTag>(m_pktID, djtag) );
+        m_queue_mutex.unlock();
 	}
-    else {
-        tag_bool_queue.push(false);
-    }
 
     // we limit the packet buffer to original size + 512 bytes, which means we
     // cannot add more than 512 bytes of header data to the packet, which should
@@ -1091,32 +1110,34 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
         }
 
-        // =NO need now========================= port info==========================
-        /*if (phv->has_field("scalars.userMetadata._ns3i_port22")) {
-            phv->get_field("scalars.userMetadata._ns3i_port22")
-                .set(inPort);
-        } else if (phv->has_field("scalars.userMetadata._ns3i_port18")) {
-            phv->get_field("scalars.userMetadata._ns3i_port18")
-                .set(inPort);
+        // ==========================tag with m_pktID ==========================
+        if (phv->has_field("scalars.userMetadata._ns3i_pkts_id22")) {
+            phv->get_field("scalars.userMetadata._ns3i_pkts_id22")
+                .set(m_pktID-1); // because ++
+            //std::cout << "1 set tag" << m_pktID-1 << std::endl;
+        } else if (phv->has_field("scalars.userMetadata._ns3i_pkts_id18")) {
+            phv->get_field("scalars.userMetadata._ns3i_pkts_id18")
+                .set(m_pktID-1);
+            //std::cout << "2 set tag" << m_pktID-1 << std::endl;
         } else {
             // warning
-            std::cout << "destination port set from ns3 -> bmv2 failed." << std::endl;
-        }*/
+            std::cout << "tag set from ns3 -> bmv2 failed." << std::endl;
+        }
 
         // ==================================give to ingress Thread==================================
         
         input_buffer->push_front(
             InputBuffer::PacketType::NORMAL, std::move(packet));
         // @mingyu std::cout
-        // std::cout << "The pkts " << m_pktID << " : " << Simulator::Now () << " in " << this << std::endl;
-        // std::cout << "Emu The in pkts " << m_pktID << " : " << times.count() << " in " << this << std::endl;
+        std::cout << "SimIn," << m_pktID-1 << "," << Simulator::Now () << "," << p4_switch_ID << std::endl;
+        //std::cout << "EmuIn," << m_pktID-1 << "," << times.count() << "," << p4_switch_ID << std::endl;
         return 0;
     }
     return -1;
 }
 
 void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2)
+		std::string dest1, std::string dest2, bool traceDrop)
 {
     // this will be called by users hand
     while(!re_bm_queue.empty()) {
@@ -1129,7 +1150,8 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
 
         PHV* phv = bmpkt->get_phv();
         
-        // 这里的数据时需要根据不同的p4-json文件而修改，目前还没有太好的解决的方法（时间原因）
+        // ==================Take info from the p4 bm::packet==================
+        
         // "scalars.userMetadata._ns3i_protocol20" proto1
         // "scalars.userMetadata._ns3i_protocol16" proto2
         uint16_t protocol;
@@ -1160,27 +1182,54 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
             port = phv->get_field("standard_metadata.egress_port").get_int();
         }
 
-        //std::cout << "@mingyu after bmv2 port: " << port << " protocol " << protocol << " idx " << des_idx << std::endl;
-        // phv->get_field("standard_metadata.egress_port")
+        int src_pkt_id = 0;
+        if (phv->has_field("scalars.userMetadata._ns3i_pkts_id22")) {
+            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id22").get_int();
+        } else if (phv->has_field("scalars.userMetadata._ns3i_pkts_id18")) {
+            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id18").get_int();
+        } else {
+            std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+        }
 
+        // tracing the drop with p4-value
+        if (traceDrop) {
+            TraceAllDropInBmv2(phv);
+        }
+
+        //std::cout << "@mingyu after bmv2 port: " << port << " protocol " << protocol << " idx " << des_idx << std::endl;
+
+        // ==================tranfer bm::packet to ns3::packet==================
+        
         void *bm2Buffer = bmpkt.get()->data();
         size_t bm2Length = bmpkt.get()->get_data_size();
         ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
 
+
         // add the ByteTag of the ns3::packet (for tracing delay etc)
-        bool first = tag_bool_queue.front();
-        if (first) {
-            ns3Packet.AddByteTag(tag_queue.front());
-            tag_queue.pop(); // pop one
-        }
-        tag_bool_queue.pop(); // pop one
+        m_queue_mutex.lock();
         
+        if (tag_map.find(src_pkt_id) != tag_map.end()) {
+            DelayJitterEstimationTimestampTag rdjtag = tag_map.find(src_pkt_id)->second;
+            ns3Packet.AddByteTag(rdjtag);
+            tag_map.erase (src_pkt_id); // Clear the item to avoid excessive map
+        }
+        else {
+            std::cout << "No tag for sending out!!!" << std::endl;
+        }
+        m_queue_mutex.unlock();
+
         Ptr<ns3::Packet> packetOut(&ns3Packet);
 
         // ===================================== send out==================================
         m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
+        
         // @mingyu std::cout
-        // std::cout << "The re pkts " << m_re_pktID << " : " << Simulator::Now () << " in " << this <<  std::endl;
+        int priority = -1;
+        if (phv->has_field("standard_metadata.priority")) {
+            priority = phv->get_field("standard_metadata.priority").get_int();
+        }
+
+        std::cout << "SimOut," << src_pkt_id << "," << priority << "," << Simulator::Now () << "," << p4_switch_ID <<  std::endl;
     }
 }
 
@@ -1262,17 +1311,17 @@ bool P4Model::TraceAllDropInBmv2(bm::PHV* phv)
 
     // The traced var name in bmv2, check the .json file get the name
     const std::string switch_1_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop18";
-    const std::string switch_1_queue_Id = "userMetadata._ns3i_ns3_queue_id19";
+    // const std::string switch_1_queue_Id = "userMetadata._ns3i_ns3_queue_id19";
     const std::string switch_2_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop14";
-    const std::string switch_2_queue_Id = "userMetadata._ns3i_ns3_queue_id15";
+    // const std::string switch_2_queue_Id = "userMetadata._ns3i_ns3_queue_id15";
 
     // the drop from switch 1 with codel1.p4
     if (phv->has_field(switch_1_drop_Nr)) {
         int mark_to_drop = phv->get_field(switch_1_drop_Nr).get_int();
         if (mark_to_drop != 0) {
-            if (phv->has_field(switch_1_queue_Id)) {
-                int queue_id = phv->get_field(switch_1_queue_Id).get_int();
-                this->RecordAllDropInfo(queue_id); // Recored data
+            if (phv->has_field("standard_metadata.priority")) {
+                int pr = phv->get_field("standard_metadata.priority").get_int();
+                this->RecordAllDropInfo(pr);
             } else {
                 this->m_dropNum++;
                 std::cout << "pkts passive droped in switch 1 bmv2-p4!" << std::endl;
@@ -1285,9 +1334,9 @@ bool P4Model::TraceAllDropInBmv2(bm::PHV* phv)
     if (phv->has_field(switch_2_drop_Nr)) {
         int mark_to_drop = phv->get_field(switch_2_drop_Nr).get_int();
         if (mark_to_drop != 0) {
-            if (phv->has_field(switch_2_queue_Id)) {
-                int queue_id = phv->get_field(switch_2_queue_Id).get_int();
-                this->RecordAllDropInfo(queue_id); // Recored data
+            if (phv->has_field("standard_metadata.priority")) {
+                int pr = phv->get_field("standard_metadata.priority").get_int();
+                this->RecordAllDropInfo(pr); // Recored data
             } else {
                 this->m_dropNum++;
                 std::cout << "pkts passive droped in switch 2 bmv2-p4!" << std::endl;
@@ -1298,25 +1347,36 @@ bool P4Model::TraceAllDropInBmv2(bm::PHV* phv)
     return true; // No drop in ns-3
 }
 
-bool P4Model::RecordAllDropInfo(int queue_id)
+bool P4Model::RecordAllDropInfo(int que_priority)
 {
-    switch (queue_id) {
-    case 1: {
-        this->m_qDropNum_1++;
-        break;
+    std::string filename = "./scratch-data/p4-codel/drop_queue.csv";
+    std::ofstream dropFile(filename, std::ios::app);
+    if (dropFile.is_open()) {
+        switch (que_priority) {
+        case 7: {
+            this->m_qDropNum_1++;
+            dropFile << que_priority << "," << Simulator::Now().GetSeconds() << "," << m_qDropNum_1 << std::endl;
+            break;
+        }
+        case 3: {
+            this->m_qDropNum_2++;
+            dropFile << que_priority << "," << Simulator::Now().GetSeconds() << "," << m_qDropNum_2 << std::endl;
+            break;
+        }
+        case 0: {
+            this->m_qDropNum_3++;
+            dropFile << que_priority << "," << Simulator::Now().GetSeconds() << "," << m_qDropNum_3 << std::endl;
+            break;
+        }
+        default: {
+            std::cout << "WARNING: No queue id, pkts initiative to be dropped in switch bmv2-p4!" << std::endl;
+            break;
+        }
+        }
+        dropFile.close();
     }
-    case 2: {
-        this->m_qDropNum_2++;
-        break;
-    }
-    case 3: {
-        this->m_qDropNum_3++;
-        break;
-    }
-    default: {
-        std::cout << "WARNING: No queue id, pkts initiative to be dropped in switch bmv2-p4!" << std::endl;
-        break;
-    }
+    else {
+        std::cout << "Drop record file " << filename << " can not open!" << std::endl;
     }
     return true;
 }

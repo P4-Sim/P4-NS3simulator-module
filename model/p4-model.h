@@ -106,20 +106,20 @@ class P4Model : public Switch {
 
 		std::vector<Address> destination_list;						//!< list for address, using by index
 		int address_num;											//!< index of address.
-		
+		int p4_switch_ID;
 		std::queue<std::unique_ptr<bm::Packet>> bm_queue;			//!< SYNC infomation Queue
 		std::queue<std::unique_ptr<bm::Packet>> re_bm_queue;		//!< re_bm_queue for saving pkts from bm_queue
 
-		std::queue<bool> tag_bool_queue;
-		std::queue<DelayJitterEstimationTimestampTag> tag_queue;
+		std::map<int, DelayJitterEstimationTimestampTag> tag_map;
 
 		mutable std::mutex m_mutex;
+		mutable std::mutex m_queue_mutex;
 
 		int ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
     		uint16_t protocol, Address const& destination);
 
 		void SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2);
+		std::string dest1, std::string dest2, bool traceDrop);
 
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
