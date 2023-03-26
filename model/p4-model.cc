@@ -329,6 +329,13 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
 
     static int switch_id = 1;
     p4_switch_ID = switch_id++;
+
+    drop_tracer.send_num_7 = 0;
+    drop_tracer.send_num_3 = 0;
+    drop_tracer.send_num_0 = 0;
+    drop_tracer.receive_num_7 = 0;
+    drop_tracer.receive_num_3 = 0;
+    drop_tracer.receive_num_0 = 0;
 }
 
 int P4Model::init(int argc, char* argv[])
@@ -630,9 +637,9 @@ void P4Model::transmit_thread()
         /*my_transmit_fn(packet->get_egress_port(), packet->get_packet_id(),
             packet->data(), packet->get_data_size());*/
         // get the protocol and desination Address for ns-3 @mingyu
-        m_mutex.lock();
+        m_pkt_queue_mutex.lock();
         bm_queue.push(std::move(packet));
-        m_mutex.unlock();
+        m_pkt_queue_mutex.unlock();
     }
 }
 
@@ -764,6 +771,46 @@ void P4Model::ingress_thread()
         ingress_mau->apply(packet.get());
 
         packet->reset_exit();
+        
+                /*  Here we set the priority with num ID, they should set this after 
+            we doing slice priority (which in p4 ingress progress), in order 
+            to using priority_id for trace drop. But also should before the 
+            ingress and egress Enqueue, which will drop by the priority.
+            @mingyu*/
+        int priority = -1;
+        if (phv->has_field("standard_metadata.priority")) {
+            priority = phv->get_field("standard_metadata.priority").get_int();
+        }
+        m_drop_queue_mutex.lock();
+        int64_t temp_drop_tracer_value = 0;
+        switch (priority) {
+            case 0: {
+                // No need for mutex lock, only one ingress thread do operation
+                temp_drop_tracer_value = drop_tracer.send_num_0++;
+                break;
+            }
+            case 3: {
+                temp_drop_tracer_value = drop_tracer.send_num_3++;
+                break;
+            }
+            case 7: {
+                temp_drop_tracer_value = drop_tracer.send_num_7++;
+                break;
+            }
+            default: {
+                std::cout << "Error priority for tracing the pkts drop!" << std::endl;
+            }
+        }
+        if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id19")) {
+            phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id19")
+                .set(temp_drop_tracer_value);
+        } else if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id15")) {
+            phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id15")
+                .set(temp_drop_tracer_value);
+        } else {
+            std::cout << "temp_drop_tracer_value set failed." << std::endl;
+        }
+        m_drop_queue_mutex.unlock();
 
         Field& f_egress_spec = phv->get_field("standard_metadata.egress_spec");
         port_t egress_spec = f_egress_spec.get_uint();
@@ -1029,9 +1076,9 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     // parse the ByteTag in ns3::packet (for tracing delay etc)
     DelayJitterEstimationTimestampTag djtag;
     if (packetIn->FindFirstMatchingByteTag(djtag)) {
-        m_queue_mutex.lock();
-		tag_map.insert (std::pair<int, DelayJitterEstimationTimestampTag>(m_pktID, djtag) );
-        m_queue_mutex.unlock();
+        m_tag_queue_mutex.lock();
+		tag_map.insert (std::pair<int64_t, DelayJitterEstimationTimestampTag>(m_pktID, djtag) );
+        m_tag_queue_mutex.unlock();
 	}
 
     // we limit the packet buffer to original size + 512 bytes, which means we
@@ -1110,17 +1157,49 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
         }
 
+        // ========================== priority ==========================
+        // here the package do not know it's priority(should after p4 ingress slice),
+        // so we can not set ID here. @mingyu
+        /*int priority = -1;
+        if (phv->has_field("standard_metadata.priority")) {
+            priority = phv->get_field("standard_metadata.priority").get_int();
+        }
+        int64_t temp_drop_tracer_value = 0;
+        switch (priority) {
+            case 0: {
+                temp_drop_tracer_value = drop_tracer.send_num_0++;
+                break;
+            }
+            case 3: {
+                temp_drop_tracer_value = drop_tracer.send_num_3++;
+                break;
+            }
+            case 7: {
+                temp_drop_tracer_value = drop_tracer.send_num_7++;
+                break;
+            }
+            default: {
+                std::cout << "Error priority for tracing the pkts drop!" << std::endl;
+            }
+        }
+        if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id19")) {
+            phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id19")
+                .set(temp_drop_tracer_value);
+        } else if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id15")) {
+            phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id15")
+                .set(temp_drop_tracer_value);
+        } else {
+            std::cout << "temp_drop_tracer_value set failed." << std::endl;
+        }*/
+
         // ==========================tag with m_pktID ==========================
         if (phv->has_field("scalars.userMetadata._ns3i_pkts_id22")) {
             phv->get_field("scalars.userMetadata._ns3i_pkts_id22")
                 .set(m_pktID-1); // because ++
-            //std::cout << "1 set tag" << m_pktID-1 << std::endl;
         } else if (phv->has_field("scalars.userMetadata._ns3i_pkts_id18")) {
             phv->get_field("scalars.userMetadata._ns3i_pkts_id18")
                 .set(m_pktID-1);
-            //std::cout << "2 set tag" << m_pktID-1 << std::endl;
         } else {
-            // warning
             std::cout << "tag set from ns3 -> bmv2 failed." << std::endl;
         }
 
@@ -1137,7 +1216,7 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 }
 
 void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2, bool traceDrop)
+		std::string dest1, std::string dest2, bool traceDrop, bool traceDropOld)
 {
     // this will be called by users hand
     while(!re_bm_queue.empty()) {
@@ -1146,7 +1225,7 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
         bmpkt = std::move(re_bm_queue.front());  // unique ptr move
         re_bm_queue.pop();
 
-        m_re_pktID++;  // 更新接受包的ID号码，方便和发送ID号比对
+        m_re_pktID++;  // the packet number should be
 
         PHV* phv = bmpkt->get_phv();
         
@@ -1182,17 +1261,17 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
             port = phv->get_field("standard_metadata.egress_port").get_int();
         }
 
-        int src_pkt_id = 0;
+        int64_t src_pkt_id = 0;
         if (phv->has_field("scalars.userMetadata._ns3i_pkts_id22")) {
-            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id22").get_int();
+            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id22").get_uint64();
         } else if (phv->has_field("scalars.userMetadata._ns3i_pkts_id18")) {
-            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id18").get_int();
+            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id18").get_uint64();
         } else {
             std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
         }
 
         // tracing the drop with p4-value
-        if (traceDrop) {
+        if (traceDropOld) {
             TraceAllDropInBmv2(phv);
         }
 
@@ -1206,7 +1285,7 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
 
 
         // add the ByteTag of the ns3::packet (for tracing delay etc)
-        m_queue_mutex.lock();
+        m_tag_queue_mutex.lock();
         
         if (tag_map.find(src_pkt_id) != tag_map.end()) {
             DelayJitterEstimationTimestampTag rdjtag = tag_map.find(src_pkt_id)->second;
@@ -1216,7 +1295,7 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
         else {
             std::cout << "No tag for sending out!!!" << std::endl;
         }
-        m_queue_mutex.unlock();
+        m_tag_queue_mutex.unlock();
 
         Ptr<ns3::Packet> packetOut(&ns3Packet);
 
@@ -1229,7 +1308,81 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
             priority = phv->get_field("standard_metadata.priority").get_int();
         }
 
+        int64_t pkts_id_sending = 0; // the pkts ID when sending, if bigger than receive record, there are pkts drop
+        if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id19")) {
+            pkts_id_sending = phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id19")
+                .get_uint64();
+        } else if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id15")) {
+            pkts_id_sending = phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id15")
+                .get_uint64();
+        } else {
+            std::cout << "temp_drop_tracer_value get failed." << std::endl;
+        } 
+
+        int64_t delta_drop_num = 0;
+        switch (priority)
+        {
+            case 0:{
+                delta_drop_num = pkts_id_sending - drop_tracer.receive_num_0;
+                drop_tracer.receive_num_0 = pkts_id_sending; // update to the current package ID
+                drop_tracer.receive_num_0++; // increase one for next pkt
+                break;
+            }
+            case 3:{
+                delta_drop_num = pkts_id_sending -  drop_tracer.receive_num_3;
+                drop_tracer.receive_num_3 = pkts_id_sending;
+                drop_tracer.receive_num_3++;
+                break;
+            }
+            case 7:{
+                delta_drop_num = pkts_id_sending -  drop_tracer.receive_num_7;
+                drop_tracer.receive_num_7 = pkts_id_sending;
+                drop_tracer.receive_num_7++;
+                break;
+            } 
+            default:{
+                std::cout << "Error priority for tracing the pkts drop!" << std::endl;
+            }
+        }
+
         std::cout << "SimOut," << src_pkt_id << "," << priority << "," << Simulator::Now () << "," << p4_switch_ID <<  std::endl;
+        
+        // ===================================== drop record ================================== 
+        if (traceDrop && delta_drop_num != 0) {
+            // only if the pkts was drop and the delta_drop_num not equal to 0, then
+            // will call the record, normolly the pkts success transfer will not be 
+            // record. @mingyu
+            
+            if (p4_switch_ID == 1) {
+                std::string filename = "./scratch-data/p4-codel/drop_tracing_1.csv";
+                std::ofstream dropFile(filename, std::ios::app);
+                if (dropFile.is_open()) {
+                    dropFile << 
+                    delta_drop_num << "," << 
+                    pkts_id_sending<< "," <<  
+                    drop_tracer.receive_num_0  << "," << 
+                    drop_tracer.receive_num_3  << "," << 
+                    drop_tracer.receive_num_7  << "," << 
+                    priority << "," << Simulator::Now () << std::endl;
+                }
+                dropFile.close();
+            }
+            else if (p4_switch_ID == 2) {
+                std::string filename = "./scratch-data/p4-codel/drop_tracing_2.csv";
+                std::ofstream dropFile(filename, std::ios::app);
+                if (dropFile.is_open()) {
+                    dropFile << delta_drop_num << "," << pkts_id_sending<< "," <<  
+                    drop_tracer.receive_num_0  << "," << 
+                    drop_tracer.receive_num_3  << "," << 
+                    drop_tracer.receive_num_7  << "," << 
+                    priority << "," << Simulator::Now () << std::endl;
+                }
+                dropFile.close();
+            }
+            else {
+                // warning
+            }
+        }
     }
 }
 

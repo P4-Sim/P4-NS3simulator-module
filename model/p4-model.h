@@ -106,20 +106,51 @@ class P4Model : public Switch {
 
 		std::vector<Address> destination_list;						//!< list for address, using by index
 		int address_num;											//!< index of address.
-		int p4_switch_ID;
+		int p4_switch_ID;											//!< the total drop packages number
 		std::queue<std::unique_ptr<bm::Packet>> bm_queue;			//!< SYNC infomation Queue
 		std::queue<std::unique_ptr<bm::Packet>> re_bm_queue;		//!< re_bm_queue for saving pkts from bm_queue
 
-		std::map<int, DelayJitterEstimationTimestampTag> tag_map;
+		struct DropTracing {
+			int64_t send_num_7;
+			int64_t send_num_3;
+			int64_t send_num_0;
+			int64_t receive_num_7;
+			int64_t receive_num_3;
+			int64_t receive_num_0;
+		} drop_tracer;
+		mutable std::mutex m_drop_queue_mutex;
 
-		mutable std::mutex m_mutex;
-		mutable std::mutex m_queue_mutex;
+		std::map<int64_t, DelayJitterEstimationTimestampTag> tag_map;
 
+		mutable std::mutex m_pkt_queue_mutex;
+		mutable std::mutex m_tag_queue_mutex;
+
+		/**
+		 * @brief The old method for processing pkts with bmv2.
+		 * This is simple parser, no other processing.
+		 * 
+		 * @param packetIn ns3::Packet get in netdecive
+		 * @param inPort 
+		 * @param protocol ns3 sending protocol, Z.B. arp
+		 * @param destination 
+		 * @return int 
+		 */
 		int ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
     		uint16_t protocol, Address const& destination);
 
+		/**
+		 * @brief For the simulation, this should be add with 
+		 * Simulator::Schedule (MicroSeconds (1) ...)
+		 * 
+		 * @param proto1 the p4 json variables name for switch 1 to record the protocol
+		 * @param proto2 the p4 json variables name for switch 2 to record the protocol
+		 * @param dest1 the p4 json variables name for switch 1 to record the ns3 pkts destination index
+		 * @param dest2 the p4 json variables name for switch 2 to record the ns3 pkts destination index
+		 * @param traceDrop True or False, trace the drop total.
+		 * @param traceDropOld Only trace the pkts drop in p4.
+		 */
 		void SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2, bool traceDrop);
+		std::string dest1, std::string dest2, bool traceDrop, bool traceDropOld);
 
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
@@ -269,8 +300,8 @@ class P4Model : public Switch {
 		bool with_queueing_metadata{false};
 		std::unique_ptr<MirroringSessions> mirroring_sessions;
 
-		int m_pktID = 0;								//!< Packet ID
-		int m_re_pktID = 0;
+		int64_t m_pktID = 0;								//!< Packet ID
+		int64_t m_re_pktID = 0;
 		TracedValue<int64_t> m_qDropNum_1;        		//!< Number of the pkts drops in 1 queue
 		TracedValue<int64_t> m_qDropNum_2;        		//!< Number of the pkts drops in 2 queue
 		TracedValue<int64_t> m_qDropNum_3;        		//!< Number of the pkts drops in 3 queue
