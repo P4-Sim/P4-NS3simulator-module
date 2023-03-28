@@ -641,10 +641,10 @@ void P4Model::transmit_thread()
         }
 
         int src_pkt_id = 0;
-        if (phv->has_field("scalars.userMetadata._ns3i_pkts_id22")) {
-            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id22").get_int();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_pkts_id18")) {
-            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id18").get_int();
+        if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_int();
+        } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_int();
         } else {
             std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
         }
@@ -794,11 +794,11 @@ void P4Model::ingress_thread()
 
         packet->reset_exit();
         
-                /*  Here we set the priority with num ID, they should set this after 
-            we doing slice priority (which in p4 ingress progress), in order 
-            to using priority_id for trace drop. But also should before the 
-            ingress and egress Enqueue, which will drop by the priority.
-            @mingyu*/
+        /*  Here we set the priority with num ID, they should set this after 
+        we doing slice priority (which in p4 ingress progress), in order 
+        to using priority_id for trace drop. But also should before the 
+        ingress and egress Enqueue, which will drop by the priority.
+        @mingyu*/
         int priority = -1;
         if (phv->has_field("standard_metadata.priority")) {
             priority = phv->get_field("standard_metadata.priority").get_int();
@@ -823,11 +823,11 @@ void P4Model::ingress_thread()
                 std::cout << "Error priority for tracing the pkts drop!" << std::endl;
             }
         }
-        if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id19")) {
-            phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id19")
+        if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
+            phv->get_field(P4GlobalVar::ns3i_priority_id_1)
                 .set(temp_drop_tracer_value);
-        } else if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id15")) {
-            phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id15")
+        } else if (phv->has_field(P4GlobalVar::ns3i_priority_id_2)) {
+            phv->get_field(P4GlobalVar::ns3i_priority_id_2)
                 .set(temp_drop_tracer_value);
         } else {
             std::cout << "temp_drop_tracer_value set failed." << std::endl;
@@ -1149,10 +1149,10 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         */
         
         //==========================protocol==========================
-        if (phv->has_field("scalars.userMetadata._ns3i_protocol20")) {
-            phv->get_field("scalars.userMetadata._ns3i_protocol20").set(protocol);
-        } else if (phv->has_field("scalars.userMetadata._ns3i_protocol16")) {
-            phv->get_field("scalars.userMetadata._ns3i_protocol16").set(protocol);
+        if (phv->has_field(P4GlobalVar::ns3i_protocol_1)) {
+            phv->get_field(P4GlobalVar::ns3i_protocol_1).set(protocol);
+        } else if (phv->has_field(P4GlobalVar::ns3i_protocol_2)) {
+            phv->get_field(P4GlobalVar::ns3i_protocol_2).set(protocol);
         } else {
             std::cout << "protocol set from ns3 -> bmv2 failed." << std::endl;
         }
@@ -1168,11 +1168,11 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             index_dest_address = std::distance(destination_list.begin(), it);
         }
 
-        if (phv->has_field("scalars.userMetadata._ns3i_destination21")) {
-            phv->get_field("scalars.userMetadata._ns3i_destination21")
+        if (phv->has_field(P4GlobalVar::ns3i_destination_1)) {
+            phv->get_field(P4GlobalVar::ns3i_destination_1)
                 .set(index_dest_address);
-        } else if (phv->has_field("scalars.userMetadata._ns3i_destination17")) {
-            phv->get_field("scalars.userMetadata._ns3i_destination17")
+        } else if (phv->has_field(P4GlobalVar::ns3i_destination_2)) {
+            phv->get_field(P4GlobalVar::ns3i_destination_2)
                 .set(index_dest_address);
         } else {
             // warning
@@ -1204,22 +1204,22 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
                 std::cout << "Error priority for tracing the pkts drop!" << std::endl;
             }
         }
-        if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id19")) {
-            phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id19")
+        if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
+            phv->get_field(P4GlobalVar::ns3i_priority_id_1)
                 .set(temp_drop_tracer_value);
-        } else if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id15")) {
-            phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id15")
+        } else if (phv->has_field(P4GlobalVar::ns3i_priority_id_2)) {
+            phv->get_field(P4GlobalVar::ns3i_priority_id_2)
                 .set(temp_drop_tracer_value);
         } else {
             std::cout << "temp_drop_tracer_value set failed." << std::endl;
         }*/
 
         // ==========================tag with m_pktID ==========================
-        if (phv->has_field("scalars.userMetadata._ns3i_pkts_id22")) {
-            phv->get_field("scalars.userMetadata._ns3i_pkts_id22")
+        if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+            phv->get_field(P4GlobalVar::ns3i_pkts_id_1)
                 .set(m_pktID-1); // because ++
-        } else if (phv->has_field("scalars.userMetadata._ns3i_pkts_id18")) {
-            phv->get_field("scalars.userMetadata._ns3i_pkts_id18")
+        } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+            phv->get_field(P4GlobalVar::ns3i_pkts_id_2)
                 .set(m_pktID-1);
         } else {
             std::cout << "tag set from ns3 -> bmv2 failed." << std::endl;
@@ -1253,8 +1253,6 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
         
         // ==================Take info from the p4 bm::packet==================
         
-        // "scalars.userMetadata._ns3i_protocol20" proto1
-        // "scalars.userMetadata._ns3i_protocol16" proto2
         uint16_t protocol;
         if (phv->has_field(proto1)) {
             protocol = phv->get_field(proto1).get_int();
@@ -1265,8 +1263,6 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
             protocol = 0;
         }
         
-        // dest1 "scalars.userMetadata._ns3i_destination21"
-        // dest2 "scalars.userMetadata._ns3i_destination17"
         int des_idx = 0;
         if (phv->has_field(dest1)) {
             des_idx = phv->get_field(dest1).get_int();
@@ -1284,17 +1280,12 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
         }
 
         int64_t src_pkt_id = 0;
-        if (phv->has_field("scalars.userMetadata._ns3i_pkts_id22")) {
-            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id22").get_uint64();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_pkts_id18")) {
-            src_pkt_id = phv->get_field("scalars.userMetadata._ns3i_pkts_id18").get_uint64();
+        if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+        } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
         } else {
             std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
-        }
-
-        // tracing the drop with p4-value
-        if (traceDropOld) {
-            TraceAllDropInBmv2(phv);
         }
 
         //std::cout << "@mingyu after bmv2 port: " << port << " protocol " << protocol << " idx " << des_idx << std::endl;
@@ -1331,11 +1322,11 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
         }
 
         int64_t pkts_id_sending = 0; // the pkts ID when sending, if bigger than receive record, there are pkts drop
-        if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id19")) {
-            pkts_id_sending = phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id19")
+        if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
+            pkts_id_sending = phv->get_field(P4GlobalVar::ns3i_priority_id_1)
                 .get_uint64();
-        } else if (phv->has_field("scalars.userMetadata._ns3i_ns3_priority_id15")) {
-            pkts_id_sending = phv->get_field("scalars.userMetadata._ns3i_ns3_priority_id15")
+        } else if (phv->has_field(P4GlobalVar::ns3i_priority_id_2)) {
+            pkts_id_sending = phv->get_field(P4GlobalVar::ns3i_priority_id_2)
                 .get_uint64();
         } else {
             std::cout << "temp_drop_tracer_value get failed." << std::endl;
@@ -1485,9 +1476,9 @@ bool P4Model::TraceAllDropInBmv2(bm::PHV* phv)
      */
 
     // The traced var name in bmv2, check the .json file get the name
-    const std::string switch_1_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop18";
+    const std::string switch_1_drop_Nr = P4GlobalVar::ns3i_drop_1;
     // const std::string switch_1_queue_Id = "userMetadata._ns3i_ns3_queue_id19";
-    const std::string switch_2_drop_Nr = "scalars.userMetadata._ns3i_ns3_drop14";
+    const std::string switch_2_drop_Nr = P4GlobalVar::ns3i_drop_2;
     // const std::string switch_2_queue_Id = "userMetadata._ns3i_ns3_queue_id15";
 
     // the drop from switch 1 with codel1.p4

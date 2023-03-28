@@ -78,6 +78,18 @@ public:
 	static std::string g_topoDir;
 	static std::string g_flowTableDir;
 
+	// ns3 --> p4
+	static std::string ns3i_drop_1;
+	static std::string ns3i_drop_2; 
+	static std::string ns3i_priority_id_1;
+	static std::string ns3i_priority_id_2;
+	static std::string ns3i_protocol_1;
+	static std::string ns3i_protocol_2;
+	static std::string ns3i_destination_1;
+	static std::string ns3i_destination_2;
+	static std::string ns3i_pkts_id_1;
+	static std::string ns3i_pkts_id_2;
+
 	// runtime CLI wait time
 	static unsigned int g_runtimeCliTime;//s
 

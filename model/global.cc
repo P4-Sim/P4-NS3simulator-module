@@ -31,6 +31,19 @@ namespace ns3 {
   unsigned int P4GlobalVar::g_runtimeCliTime=5;
   std::map<std::string,unsigned int> P4GlobalVar::g_nfStrUintMap;
 
+  // configuration for the ns3-->p4
+  std::string P4GlobalVar::ns3i_drop_1 = "scalars.userMetadata._ns3i_ns3_drop18";
+  std::string P4GlobalVar::ns3i_drop_2 = "scalars.userMetadata._ns3i_ns3_drop14";
+  std::string P4GlobalVar::ns3i_priority_id_1 = "scalars.userMetadata._ns3i_ns3_priority_id19";
+  std::string P4GlobalVar::ns3i_priority_id_2 = "scalars.userMetadata._ns3i_ns3_priority_id15";
+  std::string P4GlobalVar::ns3i_protocol_1 = "scalars.userMetadata._ns3i_protocol20";
+  std::string P4GlobalVar::ns3i_protocol_2 = "scalars.userMetadata._ns3i_protocol16";
+  std::string P4GlobalVar::ns3i_destination_1 = "scalars.userMetadata._ns3i_destination21";
+  std::string P4GlobalVar::ns3i_destination_2 = "scalars.userMetadata._ns3i_destination17";
+  std::string P4GlobalVar::ns3i_pkts_id_1 = "scalars.userMetadata._ns3i_pkts_id22";
+  std::string P4GlobalVar::ns3i_pkts_id_2 = "scalars.userMetadata._ns3i_pkts_id18";
+
+ 
   unsigned long getTickCount(void)
   {
     unsigned long currentTime=0;
