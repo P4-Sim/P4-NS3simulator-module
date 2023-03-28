@@ -152,6 +152,8 @@ class P4Model : public Switch {
 		void SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
 		std::string dest1, std::string dest2, bool traceDrop, bool traceDropOld);
 
+		//void start_and_return_schedule();
+
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
 		using TransmitFn = std::function<void(port_t, packet_id_t,

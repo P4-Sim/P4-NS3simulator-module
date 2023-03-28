@@ -481,10 +481,15 @@ int P4Model::receive_(port_t port_num, const char* buffer, int len)
     return 0;
 }
 
-/*Multithread support*/
+/**
+ * @brief Multithread support in bmv2
+ * 
+ */
 void P4Model::start_and_return_()
 {
     check_queueing_metadata();
+
+    //uint32_t ctx = ns3::Simulator::GetContext();
 
     threads_.push_back(std::thread(&P4Model::ingress_thread, this));
     for (size_t i = 0; i < nb_egress_threads; i++) {
@@ -492,6 +497,23 @@ void P4Model::start_and_return_()
     }
     threads_.push_back(std::thread(&P4Model::transmit_thread, this)); // make this part with main thread
 }
+
+/**
+ * @brief Multithread support in ns3 local
+ * 
+ */
+// void P4Model::start_and_return_schedule()
+// {
+//     /*在使用Simulator::Schedule()方法时，需要确保foo函数的执行时间不会超过调度周期，
+//     否则会导致仿真不准确。如果foo函数的执行时间较长，可以考虑将其拆分为多个子任务，
+//     分别调度到不同的后台线程中运行*/
+//     float recirclation_time = 1 / 
+//     check_queueing_metadata();
+//     Simulator::Schedule (Seconds (0.0), &P4Model::ingress_thread);
+//     for (size_t i = 0; i < nb_egress_threads; i++) {
+//         Simulator::Schedule (Seconds (0.0), &P4Model::ingress_thread);
+//     }
+// }
 
 void P4Model::swap_notify_()
 {
@@ -612,7 +634,7 @@ void P4Model::transmit_thread()
 #endif  
         // =======================@mingyu std::cout=======================
         
-        /*int priority = -1;
+        int priority = -1;
         PHV* phv = packet->get_phv();
         if (phv->has_field("standard_metadata.priority")) {
             priority = phv->get_field("standard_metadata.priority").get_int();
@@ -629,7 +651,7 @@ void P4Model::transmit_thread()
 
         ts_res times = get_ts();
         std::cout << "EmuOut," << src_pkt_id << "," << priority << "," << times.count() << "," << p4_switch_ID << std::endl;
-        */
+        
 
         // ======================= transmit =======================
         
@@ -1208,8 +1230,8 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         input_buffer->push_front(
             InputBuffer::PacketType::NORMAL, std::move(packet));
         // @mingyu std::cout
-        std::cout << "SimIn," << m_pktID-1 << "," << Simulator::Now () << "," << p4_switch_ID << std::endl;
-        //std::cout << "EmuIn," << m_pktID-1 << "," << times.count() << "," << p4_switch_ID << std::endl;
+        //std::cout << "SimIn," << m_pktID-1 << "," << Simulator::Now () << "," << p4_switch_ID << std::endl;
+        std::cout << "EmuIn," << m_pktID-1 << "," << times.count() << "," << p4_switch_ID << std::endl;
         return 0;
     }
     return -1;
@@ -1345,7 +1367,7 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
             }
         }
 
-        std::cout << "SimOut," << src_pkt_id << "," << priority << "," << Simulator::Now () << "," << p4_switch_ID <<  std::endl;
+        //std::cout << "SimOut," << src_pkt_id << "," << priority << "," << Simulator::Now () << "," << p4_switch_ID <<  std::endl;
         
         // ===================================== drop record ================================== 
         if (traceDrop && delta_drop_num != 0) {
