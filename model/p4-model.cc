@@ -1179,41 +1179,6 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
         }
 
-        // ========================== priority ==========================
-        // here the package do not know it's priority(should after p4 ingress slice),
-        // so we can not set ID here. @mingyu
-        /*int priority = -1;
-        if (phv->has_field("standard_metadata.priority")) {
-            priority = phv->get_field("standard_metadata.priority").get_int();
-        }
-        int64_t temp_drop_tracer_value = 0;
-        switch (priority) {
-            case 0: {
-                temp_drop_tracer_value = drop_tracer.send_num_0++;
-                break;
-            }
-            case 3: {
-                temp_drop_tracer_value = drop_tracer.send_num_3++;
-                break;
-            }
-            case 7: {
-                temp_drop_tracer_value = drop_tracer.send_num_7++;
-                break;
-            }
-            default: {
-                std::cout << "Error priority for tracing the pkts drop!" << std::endl;
-            }
-        }
-        if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
-            phv->get_field(P4GlobalVar::ns3i_priority_id_1)
-                .set(temp_drop_tracer_value);
-        } else if (phv->has_field(P4GlobalVar::ns3i_priority_id_2)) {
-            phv->get_field(P4GlobalVar::ns3i_priority_id_2)
-                .set(temp_drop_tracer_value);
-        } else {
-            std::cout << "temp_drop_tracer_value set failed." << std::endl;
-        }*/
-
         // ==========================tag with m_pktID ==========================
         if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
             phv->get_field(P4GlobalVar::ns3i_pkts_id_1)
