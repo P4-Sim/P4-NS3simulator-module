@@ -16,6 +16,7 @@
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 *
 * Author: PengKuang <kphf1995cm@outlook.com>
+* Modified: Ma Mingyu <myma979@gmail.com>
 */
 
 #ifndef GLOBAL_H
@@ -35,14 +36,11 @@ namespace ns3 {
 #define P4Simulator 0
 
 // nf info
-unsigned const int ROUTER = 0;
-unsigned const int FIREWALL = 1;
-unsigned const int SILKROAD = 2;
-unsigned const int SIMPLE_ROUTER = 3;
-unsigned const int COUNTER = 4;
-unsigned const int METER = 5;
-unsigned const int REGISTER = 6;
-unsigned const int ROUTERDEV = 7;
+unsigned const int SIMPLESWITCH = 0;
+unsigned const int PRIORITYQUEUE = 1;
+unsigned const int SIMPLECODEL = 2;
+unsigned const int CODELPP = 3;
+
 // match type
 unsigned const int EXACT = 0;
 unsigned const int LPM = 1;

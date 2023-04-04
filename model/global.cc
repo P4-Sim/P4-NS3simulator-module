@@ -9,7 +9,7 @@ namespace ns3 {
   P4Controller P4GlobalVar::g_p4Controller;
 
   // init default static global variable
-  unsigned int P4GlobalVar::g_networkFunc=ROUTER;
+  unsigned int P4GlobalVar::g_networkFunc=SIMPLESWITCH;
   std::string P4GlobalVar::g_flowTablePath=""; // SET BY HAND BEFORE USING
   std::string P4GlobalVar::g_viewFlowTablePath="";
   std::string P4GlobalVar::g_p4MatchTypePath="";
@@ -18,11 +18,7 @@ namespace ns3 {
 
   std::string P4GlobalVar::g_homePath="/home/p4/";
   std::string P4GlobalVar::g_ns3RootName="/";
-  std::string P4GlobalVar::g_ns3SrcName="p4simulator/";
-  //std::string P4GlobalVar::g_nfDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"src/p4simulator/test/";
-  //std::string P4GlobalVar::g_topoDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"src/p4simulator/topo/";
-  //std::string P4GlobalVar::g_flowTableDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"src/p4simulator/flowtable/";
-  
+  std::string P4GlobalVar::g_ns3SrcName="p4simulator/";  
   std::string P4GlobalVar::g_nfDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"scratch-p4-file/p4src";
   std::string P4GlobalVar::g_topoDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"scratch-p4-file/topo/";
   std::string P4GlobalVar::g_flowTableDir=P4GlobalVar::g_homePath+P4GlobalVar::g_ns3RootName+P4GlobalVar::g_ns3SrcName+"scratch-p4-file/flowtable/";
@@ -43,7 +39,6 @@ namespace ns3 {
   std::string P4GlobalVar::ns3i_pkts_id_1 = "scalars.userMetadata._ns3i_pkts_id22";
   std::string P4GlobalVar::ns3i_pkts_id_2 = "scalars.userMetadata._ns3i_pkts_id18";
 
- 
   unsigned long getTickCount(void)
   {
     unsigned long currentTime=0;
@@ -60,69 +55,50 @@ namespace ns3 {
     #endif
     return currentTime;
   }
+
   void P4GlobalVar::SetP4MatchTypeJsonPath()
   {
-	switch (P4GlobalVar::g_networkFunc)
-	{
-	case FIREWALL: {
-		P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "firewall/firewall.json";
-		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "firewall/mtype.txt";
-		break;
-	}
-	case SILKROAD: {
-		P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "silkroad/silkroad.json";
-		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "silkroad/mtype.txt";
-		break;
-	}
-	case ROUTER: {
-		P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "router/router.json";
-		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "router/mtype.txt";
-    P4GlobalVar::g_flowTableDir = P4GlobalVar::g_nfDir + "router/flowtable/";
-		break;
-	}
-	case SIMPLE_ROUTER: {
-		P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "simple_router/simple_router.json";
-		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "simple_router/mtype.txt";
-		break;
-	}
-	case COUNTER: {
-		P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "counter/counter.json";
-		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "counter/mtype.txt";
-		break;
-	}
-	case METER: {
-		P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "meter/meter.json";
-		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "meter/mtype.txt";
-		break;
-	}
-	case REGISTER: {
-		P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "register/register.json";
-		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "register/mtype.txt";
-		break;
-	}
-  case ROUTERDEV: {
-    P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "routerdev/routerdev.json";
-		P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "routerdev/mtype.txt";
-    P4GlobalVar::g_flowTableDir = P4GlobalVar::g_nfDir + "routerdev/flowtable/";
-		break;
-  }
-	default: {
-		std::cerr << "NETWORK_FUNCTION_NO_EXIST!!!" << std::endl;
-		break;
-	}
-	}
+    switch (P4GlobalVar::g_networkFunc)
+    {
+      // simple switch for new p4-model
+      case SIMPLESWITCH: {
+        P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "simple_switch/simple_switch.json";
+        P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "simple_switch/mtype.txt";
+        P4GlobalVar::g_flowTableDir = P4GlobalVar::g_nfDir + "simple_switch/flowtable/";
+        break;
+      }
+      case PRIORITYQUEUE: {
+        P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "priority_queuing/priority_queuing.json";
+        P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "priority_queuing/mtype.txt";
+        P4GlobalVar::g_flowTableDir = P4GlobalVar::g_nfDir + "priority_queuing/flowtable/";
+        break;
+      }
+      case SIMPLECODEL: {
+        P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "simple_codel/simple_codel.json";
+        P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "simple_codel/mtype.txt";
+        P4GlobalVar::g_flowTableDir = P4GlobalVar::g_nfDir + "simple_codel/flowtable/";
+        break;
+      }
+      case CODELPP: {
+        P4GlobalVar::g_p4JsonPath = P4GlobalVar::g_nfDir + "codelpp/codel1.json";
+        // here we just config for the first switch
+        P4GlobalVar::g_p4MatchTypePath = P4GlobalVar::g_nfDir + "codelpp/mtype.txt";
+        P4GlobalVar::g_flowTableDir = P4GlobalVar::g_nfDir + "codelpp/flowtable/";
+        break;
+      }
+      default: {
+        std::cerr << "NETWORK_FUNCTION_NO_EXIST!!!" << std::endl;
+        break;
+      }
+    }
   } 
 
   void P4GlobalVar::InitNfStrUintMap()
   {
-    P4GlobalVar::g_nfStrUintMap["ROUTER"]=ROUTER;
-    P4GlobalVar::g_nfStrUintMap["SIMPLE_ROUTER"]=SIMPLE_ROUTER;
-    P4GlobalVar::g_nfStrUintMap["FIREWALL"]=FIREWALL;
-    P4GlobalVar::g_nfStrUintMap["SILKROAD"]=SILKROAD;
-    P4GlobalVar::g_nfStrUintMap["COUNTER"]=COUNTER;
-    P4GlobalVar::g_nfStrUintMap["METER"]=METER;
-    P4GlobalVar::g_nfStrUintMap["REGISTER"]=REGISTER;
-    P4GlobalVar::g_nfStrUintMap["ROUTERDEV"]=ROUTERDEV;
+    P4GlobalVar::g_nfStrUintMap["SIMPLESWITCH"]=SIMPLESWITCH;
+    P4GlobalVar::g_nfStrUintMap["PRIORITYQUEUE"]=PRIORITYQUEUE;
+    P4GlobalVar::g_nfStrUintMap["SIMPLECODEL"]=SIMPLECODEL;
+    P4GlobalVar::g_nfStrUintMap["CODELPP"]=CODELPP;
   }
 
   TypeId P4GlobalVar::GetTypeId(void)
