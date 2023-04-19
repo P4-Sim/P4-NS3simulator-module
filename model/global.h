@@ -59,7 +59,7 @@ public:
 	//controller
 	static P4Controller g_p4Controller;
 
-	// siwtch info
+	// switch configuration info
 	static unsigned int g_networkFunc;
 	static std::string g_p4MatchTypePath;
 	static std::string g_flowTablePath;
@@ -67,7 +67,7 @@ public:
 	static std::string g_p4JsonPath;
 	static unsigned int g_populateFlowTableWay;
 
-	// path info
+	// configure file path info
 	static std::string g_homePath;
 	static std::string g_ns3RootName;
 	static std::string g_ns3SrcName;
@@ -76,7 +76,7 @@ public:
 	static std::string g_topoDir;
 	static std::string g_flowTableDir;
 
-	// ns3 --> p4
+	// ns-3 and p4 connect name
 	static std::string ns3i_drop_1;
 	static std::string ns3i_drop_2; 
 	static std::string ns3i_priority_id_1;
@@ -87,6 +87,13 @@ public:
 	static std::string ns3i_destination_2;
 	static std::string ns3i_pkts_id_1;
 	static std::string ns3i_pkts_id_2;
+
+	// tracing info
+	static bool ns3_p4_tracing_dalay_sim; // Byte Tag
+	static bool ns3_p4_tracing_dalay_emu; // system time 
+	static bool ns3_p4_tracing_control; // how the switch control the pkts
+	static bool ns3_p4_tracing_drop; // the pkts drop in and out switch
+
 
 	// runtime CLI wait time
 	static unsigned int g_runtimeCliTime;//s

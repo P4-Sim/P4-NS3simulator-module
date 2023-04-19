@@ -109,19 +109,7 @@ TypeId P4Model::GetTypeId(void)
 {
     static TypeId tid = TypeId("ns3::P4Model")
                             .SetParent<Object>()
-                            .SetGroupName("Network")
-                            .AddTraceSource("DropNum1Queue",
-                                "The packets drop number in 1st queue",
-                                MakeTraceSourceAccessor(&P4Model::m_qDropNum_1),
-                                "ns3::TracedValueCallback::Int64")
-                            .AddTraceSource("DropNum2Queue",
-                                "The packets drop number in 2st queue",
-                                MakeTraceSourceAccessor(&P4Model::m_qDropNum_2),
-                                "ns3::TracedValueCallback::Int64")
-                            .AddTraceSource("DropNum3Queue",
-                                "The packets drop number in 3st queue",
-                                MakeTraceSourceAccessor(&P4Model::m_qDropNum_3),
-                                "ns3::TracedValueCallback::Int64");
+                            .SetGroupName("Network");
     return tid;
 }
 
@@ -336,6 +324,18 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     drop_tracer.receive_num_7 = 0;
     drop_tracer.receive_num_3 = 0;
     drop_tracer.receive_num_0 = 0;
+    drop_tracer.one_loop_num = 0;
+    
+    // tracing control with simple number count
+    tracing_control_loop_num = 0;
+    tracing_ingress_total_pkts = 0;
+    tracing_ingress_drop = 0;
+    tracing_egress_total_pkts = 0;
+    tracing_egress_drop = 0;
+    tracing_port_drop = 0;
+    tracing_total_in_pkts = 0;
+    tracing_total_out_pkts = 0;
+    tracing_recirculation_pkts= 0;
 }
 
 int P4Model::init(int argc, char* argv[])
@@ -632,32 +632,39 @@ void P4Model::transmit_thread()
         BMLOG_DEBUG_PKT(*packet, "Transmitting packet of size {} out of port {}",
             packet->get_data_size(), packet->get_egress_port());
 #endif  
-        // =======================@mingyu std::cout=======================
-        
-        int priority = -1;
-        PHV* phv = packet->get_phv();
-        if (phv->has_field("standard_metadata.priority")) {
-            priority = phv->get_field("standard_metadata.priority").get_int();
+        if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
+            if (p4_switch_ID == 1){
+                int priority = -1;
+                PHV* phv = packet->get_phv();
+                if (phv->has_field("standard_metadata.priority")) {
+                    priority = phv->get_field("standard_metadata.priority").get_int();
+                }
+
+                int64_t src_pkt_id = -1;
+                if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                    src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+                } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                    src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+                } else {
+                    std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+                }
+
+                ts_res times = get_ts();
+                std::string filename = "./scratch-data/p4-codel/emu_delay_out_switch.csv";
+                std::ofstream emu_delay_file(filename, std::ios::app);
+                if (emu_delay_file.is_open()) {
+                    emu_delay_file <<"EmuOut," << src_pkt_id << "," << 
+                        priority << "," << times.count()<< std::endl;
+                }
+                emu_delay_file.close();
+            }
         }
 
-        int src_pkt_id = 0;
-        if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
-            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_int();
-        } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
-            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_int();
-        } else {
-            std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
-        }
-
-        ts_res times = get_ts();
-        std::cout << "EmuOut," << src_pkt_id << "," << priority << "," << times.count() << "," << p4_switch_ID << std::endl;
-        
-
-        // ======================= transmit =======================
-        
+        /*
         // default transmit function
-        /*my_transmit_fn(packet->get_egress_port(), packet->get_packet_id(),
+        my_transmit_fn(packet->get_egress_port(), packet->get_packet_id(),
             packet->data(), packet->get_data_size());*/
+
         // get the protocol and desination Address for ns-3 @mingyu
         m_pkt_queue_mutex.lock();
         bm_queue.push(std::move(packet));
@@ -755,6 +762,8 @@ void P4Model::ingress_thread()
         input_buffer->pop_back(&packet);
         if (packet == nullptr)
             break;
+        
+        tracing_ingress_total_pkts++;
 
         // TODO(antonin): only update these if swapping actually happened?
         Parser* parser = this->get_parser("parser");
@@ -948,6 +957,7 @@ void P4Model::ingress_thread()
 #ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Dropping packet at the end of ingress");
 #endif
+            tracing_ingress_drop++;
             continue;
         }
         auto& f_instance_type = phv->get_field("standard_metadata.instance_type");
@@ -973,6 +983,8 @@ void P4Model::egress_thread(size_t worker_id)
         Pipeline* egress_mau = this->get_pipeline("egress");
 
         phv = packet->get_phv();
+
+        tracing_egress_total_pkts++;
 
         if (phv->has_field("intrinsic_metadata.egress_global_timestamp")) {
             phv->get_field("intrinsic_metadata.egress_global_timestamp")
@@ -1048,6 +1060,7 @@ void P4Model::egress_thread(size_t worker_id)
 #ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Dropping packet at the end of egress");
 #endif
+            tracing_egress_drop++;
             continue;
         }
 
@@ -1058,7 +1071,9 @@ void P4Model::egress_thread(size_t worker_id)
         if (recirculate_flag) {
 #ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Recirculating packet");
-#endif
+#endif         
+            tracing_recirculation_pkts++;
+
             p4object_id_t field_list_id = recirculate_flag;
             RegisterAccess::set_recirculate_flag(packet.get(), 0);
             FieldList* field_list = this->get_field_list(field_list_id);
@@ -1095,14 +1110,17 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     uint8_t* ns3Buffer = new uint8_t[ns3Length];
     packetIn->CopyData(ns3Buffer, ns3Length);
 
-    // parse the ByteTag in ns3::packet (for tracing delay etc)
-    DelayJitterEstimationTimestampTag djtag;
-    if (packetIn->FindFirstMatchingByteTag(djtag)) {
-        m_tag_queue_mutex.lock();
-		tag_map.insert (std::pair<int64_t, DelayJitterEstimationTimestampTag>(m_pktID, djtag) );
-        m_tag_queue_mutex.unlock();
-	}
-
+    if (P4GlobalVar::ns3_p4_tracing_dalay_sim){
+        // parse the ByteTag in ns3::packet (for tracing delay etc)
+        DelayJitterEstimationTimestampTag djtag;
+        if (packetIn->FindFirstMatchingByteTag(djtag)) {
+            m_tag_queue_mutex.lock();
+            tag_map.insert (std::pair<int64_t, DelayJitterEstimationTimestampTag>(m_pktID, djtag) );
+            std::cout << "add tag" << m_pktID << std::endl;
+            m_tag_queue_mutex.unlock();
+        }
+    }
+    
     // we limit the packet buffer to original size + 512 bytes, which means we
     // cannot add more than 512 bytes of header data to the packet, which should
     // be more than enough
@@ -1114,6 +1132,9 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     BMELOG(packet_in, *packet);
 #endif
     if (packet) {
+        
+        tracing_total_in_pkts++;
+
         PHV* phv = packet->get_phv();
         int len = packet.get()->get_data_size();
         packet.get()->set_ingress_port(inPort);
@@ -1144,8 +1165,6 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         recirculaiton etc, maybe bm::packet will get a different order. So I think
         this situation can only be solved by adding additional information to
         the bm::package. @mingyu
-        codel1:	_ns3i_protocol20; _ns3i_destination21
-        codel2: _ns3i_protocol16; _ns3i_destination17
         */
         
         //==========================protocol==========================
@@ -1179,36 +1198,40 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
         }
 
-        // ==========================tag with m_pktID ==========================
+        // tracing: add tag with m_pktID
         if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
-            phv->get_field(P4GlobalVar::ns3i_pkts_id_1)
-                .set(m_pktID-1); // because ++
+            phv->get_field(P4GlobalVar::ns3i_pkts_id_1).set(m_pktID-1);
         } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
-            phv->get_field(P4GlobalVar::ns3i_pkts_id_2)
-                .set(m_pktID-1);
+            phv->get_field(P4GlobalVar::ns3i_pkts_id_2).set(m_pktID-1);
         } else {
             std::cout << "tag set from ns3 -> bmv2 failed." << std::endl;
         }
 
         // ==================================give to ingress Thread==================================
-        
         input_buffer->push_front(
             InputBuffer::PacketType::NORMAL, std::move(packet));
-        // @mingyu std::cout
-        //std::cout << "SimIn," << m_pktID-1 << "," << Simulator::Now () << "," << p4_switch_ID << std::endl;
-        std::cout << "EmuIn," << m_pktID-1 << "," << times.count() << "," << p4_switch_ID << std::endl;
+        
+        if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
+            if (p4_switch_ID == 1){
+                std::string filename = "./scratch-data/p4-codel/emu_delay_in_switch.csv";
+                std::ofstream emu_delay_file(filename, std::ios::app);
+                if (emu_delay_file.is_open()) {
+                    emu_delay_file <<"EmuIn," << m_pktID-1 << "," << times.count() << std::endl;
+                }
+                emu_delay_file.close();
+            }
+        }
         return 0;
     }
     return -1;
 }
 
 void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2, bool traceDrop, bool traceDropOld)
+		std::string dest1, std::string dest2)
 {
     // this will be called by users hand
     while(!re_bm_queue.empty()) {
         std::unique_ptr<bm::Packet> bmpkt;
-        // 存在处理的消息
         bmpkt = std::move(re_bm_queue.front());  // unique ptr move
         re_bm_queue.pop();
 
@@ -1244,6 +1267,12 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
             port = phv->get_field("standard_metadata.egress_port").get_int();
         }
 
+        // tranfer bm::packet to ns3::packet
+        void *bm2Buffer = bmpkt.get()->data();
+        size_t bm2Length = bmpkt.get()->get_data_size();
+        ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
+ 
+        // ======================= P4GlobalVar::ns3_p4_tracing_dalay_sim ===================== 
         int64_t src_pkt_id = 0;
         if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
             src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
@@ -1253,68 +1282,84 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
             std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
         }
 
-        //std::cout << "@mingyu after bmv2 port: " << port << " protocol " << protocol << " idx " << des_idx << std::endl;
-
-        // ==================tranfer bm::packet to ns3::packet==================
-        
-        void *bm2Buffer = bmpkt.get()->data();
-        size_t bm2Length = bmpkt.get()->get_data_size();
-        ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
-
-
-        // add the ByteTag of the ns3::packet (for tracing delay etc)
-        m_tag_queue_mutex.lock();
-        
-        if (tag_map.find(src_pkt_id) != tag_map.end()) {
-            DelayJitterEstimationTimestampTag rdjtag = tag_map.find(src_pkt_id)->second;
-            ns3Packet.AddByteTag(rdjtag);
-            tag_map.erase (src_pkt_id); // Clear the item to avoid excessive map
+        if (P4GlobalVar::ns3_p4_tracing_dalay_sim){    
+            // add the ByteTag of the ns3::packet (for tracing delay etc)
+            m_tag_queue_mutex.lock();
+            
+            if (tag_map.find(src_pkt_id) != tag_map.end()) {
+                DelayJitterEstimationTimestampTag rdjtag = tag_map.find(src_pkt_id)->second;
+                ns3Packet.AddByteTag(rdjtag);
+                tag_map.erase (src_pkt_id); // Clear the item to avoid excessive map
+                std::cout << "Tag get!" << src_pkt_id << std::endl;
+            }
+            else {
+                std::cout << "No tag for sending out with id:" << src_pkt_id << std::endl;
+            }
+            m_tag_queue_mutex.unlock();
         }
-        else {
-            std::cout << "No tag for sending out!!!" << std::endl;
-        }
-        m_tag_queue_mutex.unlock();
-
+        
         Ptr<ns3::Packet> packetOut(&ns3Packet);
-
-        // ===================================== send out==================================
+        if (port != 511) {
+            tracing_total_out_pkts++;
+        } 
+        else {
+            tracing_port_drop++;
+        }
         m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
         
-        // @mingyu std::cout
+        // ======================= P4GlobalVar::ns3_p4_tracing_drop ===================== 
+        
+
+        if (P4GlobalVar::ns3_p4_tracing_drop) {
+            if (drop_tracer.one_loop_num < 100){
+                // one hundred pkts write once.
+                drop_tracer.one_loop_num++;
+            }
+            else{
+                drop_tracer.one_loop_num = 0;
+                if (p4_switch_ID == 1) {
+                    std::string filename = "./scratch-data/p4-codel/drop_tracing_1.csv";
+                    std::ofstream dropFile(filename, std::ios::app);
+                    if (dropFile.is_open()) {
+                        dropFile <<
+                        drop_tracer.receive_num_0  << "," << drop_tracer.send_num_0 << "," <<
+                        drop_tracer.receive_num_3  << "," << drop_tracer.send_num_3 << "," <<
+                        drop_tracer.receive_num_7  << "," << drop_tracer.send_num_7 << "," <<
+                        Simulator::Now () << std::endl;
+                    }
+                    dropFile.close();
+                }
+                if (p4_switch_ID == 2) {
+                    std::string filename = "./scratch-data/p4-codel/drop_tracing_2.csv";
+                    std::ofstream dropFile(filename, std::ios::app);
+                    if (dropFile.is_open()) {
+                        dropFile <<
+                        drop_tracer.receive_num_0  << "," << drop_tracer.send_num_0 << "," <<
+                        drop_tracer.receive_num_3  << "," << drop_tracer.send_num_3 << "," <<
+                        drop_tracer.receive_num_7  << "," << drop_tracer.send_num_7 << "," <<
+                        Simulator::Now () << std::endl;
+                    }
+                    dropFile.close();
+                }
+            }
+        }// P4GlobalVar::ns3_p4_tracing_drop
+
+        // ======================= P4GlobalVar::ns3_p4_tracing_control
         int priority = -1;
         if (phv->has_field("standard_metadata.priority")) {
-            priority = phv->get_field("standard_metadata.priority").get_int();
+            priority = phv->get_field("standard_metadata.priority").get_int();  
         }
-
-        int64_t pkts_id_sending = 0; // the pkts ID when sending, if bigger than receive record, there are pkts drop
-        if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
-            pkts_id_sending = phv->get_field(P4GlobalVar::ns3i_priority_id_1)
-                .get_uint64();
-        } else if (phv->has_field(P4GlobalVar::ns3i_priority_id_2)) {
-            pkts_id_sending = phv->get_field(P4GlobalVar::ns3i_priority_id_2)
-                .get_uint64();
-        } else {
-            std::cout << "temp_drop_tracer_value get failed." << std::endl;
-        } 
-
-        int64_t delta_drop_num = 0;
         switch (priority)
         {
             case 0:{
-                delta_drop_num = pkts_id_sending - drop_tracer.receive_num_0;
-                drop_tracer.receive_num_0 = pkts_id_sending; // update to the current package ID
-                drop_tracer.receive_num_0++; // increase one for next pkt
+                drop_tracer.receive_num_0++; // increase one, record the total number receive
                 break;
             }
             case 3:{
-                delta_drop_num = pkts_id_sending -  drop_tracer.receive_num_3;
-                drop_tracer.receive_num_3 = pkts_id_sending;
                 drop_tracer.receive_num_3++;
                 break;
             }
             case 7:{
-                delta_drop_num = pkts_id_sending -  drop_tracer.receive_num_7;
-                drop_tracer.receive_num_7 = pkts_id_sending;
                 drop_tracer.receive_num_7++;
                 break;
             } 
@@ -1323,44 +1368,39 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
             }
         }
 
-        //std::cout << "SimOut," << src_pkt_id << "," << priority << "," << Simulator::Now () << "," << p4_switch_ID <<  std::endl;
-        
-        // ===================================== drop record ================================== 
-        if (traceDrop && delta_drop_num != 0) {
-            // only if the pkts was drop and the delta_drop_num not equal to 0, then
-            // will call the record, normolly the pkts success transfer will not be 
-            // record. @mingyu
-            
-            if (p4_switch_ID == 1) {
-                std::string filename = "./scratch-data/p4-codel/drop_tracing_1.csv";
-                std::ofstream dropFile(filename, std::ios::app);
-                if (dropFile.is_open()) {
-                    dropFile << 
-                    delta_drop_num << "," << 
-                    pkts_id_sending<< "," <<  
-                    drop_tracer.receive_num_0  << "," << 
-                    drop_tracer.receive_num_3  << "," << 
-                    drop_tracer.receive_num_7  << "," << 
-                    priority << "," << Simulator::Now () << std::endl;
+        if (P4GlobalVar::ns3_p4_tracing_control){
+            if (tracing_control_loop_num < 100){
+                tracing_control_loop_num++;
+            }
+            else{
+                tracing_control_loop_num = 0;
+                // one hundred pkts write once.
+                if (p4_switch_ID == 1) {
+                    std::string filename = "./scratch-data/p4-codel/control_tracing_1.csv";
+                    std::ofstream dropFile(filename, std::ios::app);
+                    if (dropFile.is_open()) {
+                        dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
+                        tracing_ingress_total_pkts << "," << tracing_ingress_drop << "," <<
+                        tracing_egress_total_pkts << "," << tracing_egress_drop << "," <<
+                        tracing_recirculation_pkts << "," << tracing_port_drop << "," <<
+                        Simulator::Now () << std::endl;
+                    }
+                    dropFile.close();
                 }
-                dropFile.close();
-            }
-            else if (p4_switch_ID == 2) {
-                std::string filename = "./scratch-data/p4-codel/drop_tracing_2.csv";
-                std::ofstream dropFile(filename, std::ios::app);
-                if (dropFile.is_open()) {
-                    dropFile << delta_drop_num << "," << pkts_id_sending<< "," <<  
-                    drop_tracer.receive_num_0  << "," << 
-                    drop_tracer.receive_num_3  << "," << 
-                    drop_tracer.receive_num_7  << "," << 
-                    priority << "," << Simulator::Now () << std::endl;
+                if (p4_switch_ID == 2) {
+                    std::string filename = "./scratch-data/p4-codel/control_tracing_2.csv";
+                    std::ofstream dropFile(filename, std::ios::app);
+                    if (dropFile.is_open()) {
+                        dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
+                        tracing_ingress_total_pkts << "," <<tracing_ingress_drop << "," <<
+                        tracing_egress_total_pkts << "," <<tracing_egress_drop << "," <<
+                        tracing_recirculation_pkts << "," <<
+                        Simulator::Now () << std::endl;
+                    }
+                    dropFile.close();
                 }
-                dropFile.close();
             }
-            else {
-                // warning
-            }
-        }
+        }// P4GlobalVar::ns3_p4_tracing_control
     }
 }
 
@@ -1422,92 +1462,4 @@ int P4Model::ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
 		return 0;
 	}
 	return -1;
-}
-
-bool P4Model::TraceAllDropInBmv2(bm::PHV* phv)
-{
-    /* the drop process usually done in QueueDisc, which is in the
-     * traffic-control module, and with "DropBeforeEnqueue" or
-     * "DropAfterDequeue" etc. Also it gives may tools like traceing,
-     * drop recording etc. But here we just drop the pkts.
-     *
-     * In p4, the drop should add a line before the mark_to_drop, for example:
-     * 		meta.drop = 1;      // add for connect ns-3 --> drop @ns3
-     * 		mark_to_drop(standard_metadata);
-     * In ns-3, we maybe need to trace:
-     * 		scalars.userMetadata._drop18 // the name from json file data struct
-     * ideas comes from: ns3-PIFO-TM
-     * @todo mingyu
-     */
-
-    // The traced var name in bmv2, check the .json file get the name
-    const std::string switch_1_drop_Nr = P4GlobalVar::ns3i_drop_1;
-    // const std::string switch_1_queue_Id = "userMetadata._ns3i_ns3_queue_id19";
-    const std::string switch_2_drop_Nr = P4GlobalVar::ns3i_drop_2;
-    // const std::string switch_2_queue_Id = "userMetadata._ns3i_ns3_queue_id15";
-
-    // the drop from switch 1 with codel1.p4
-    if (phv->has_field(switch_1_drop_Nr)) {
-        int mark_to_drop = phv->get_field(switch_1_drop_Nr).get_int();
-        if (mark_to_drop != 0) {
-            if (phv->has_field("standard_metadata.priority")) {
-                int pr = phv->get_field("standard_metadata.priority").get_int();
-                this->RecordAllDropInfo(pr);
-            } else {
-                this->m_dropNum++;
-                std::cout << "pkts passive droped in switch 1 bmv2-p4!" << std::endl;
-            }
-            return false; // drop in ns-3
-        }
-    }
-
-    // the drop from switch 2 with codel2.p4
-    if (phv->has_field(switch_2_drop_Nr)) {
-        int mark_to_drop = phv->get_field(switch_2_drop_Nr).get_int();
-        if (mark_to_drop != 0) {
-            if (phv->has_field("standard_metadata.priority")) {
-                int pr = phv->get_field("standard_metadata.priority").get_int();
-                this->RecordAllDropInfo(pr); // Recored data
-            } else {
-                this->m_dropNum++;
-                std::cout << "pkts passive droped in switch 2 bmv2-p4!" << std::endl;
-            }
-            return false; // drop in ns-3
-        }
-    }
-    return true; // No drop in ns-3
-}
-
-bool P4Model::RecordAllDropInfo(int que_priority)
-{
-    std::string filename = "./scratch-data/p4-codel/drop_queue.csv";
-    std::ofstream dropFile(filename, std::ios::app);
-    if (dropFile.is_open()) {
-        switch (que_priority) {
-        case 7: {
-            this->m_qDropNum_1++;
-            dropFile << que_priority << "," << Simulator::Now().GetSeconds() << "," << m_qDropNum_1 << std::endl;
-            break;
-        }
-        case 3: {
-            this->m_qDropNum_2++;
-            dropFile << que_priority << "," << Simulator::Now().GetSeconds() << "," << m_qDropNum_2 << std::endl;
-            break;
-        }
-        case 0: {
-            this->m_qDropNum_3++;
-            dropFile << que_priority << "," << Simulator::Now().GetSeconds() << "," << m_qDropNum_3 << std::endl;
-            break;
-        }
-        default: {
-            std::cout << "WARNING: No queue id, pkts initiative to be dropped in switch bmv2-p4!" << std::endl;
-            break;
-        }
-        }
-        dropFile.close();
-    }
-    else {
-        std::cout << "Drop record file " << filename << " can not open!" << std::endl;
-    }
-    return true;
 }

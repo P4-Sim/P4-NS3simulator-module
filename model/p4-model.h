@@ -117,8 +117,20 @@ class P4Model : public Switch {
 			int64_t receive_num_7;
 			int64_t receive_num_3;
 			int64_t receive_num_0;
+			int one_loop_num;
 		} drop_tracer;
 		mutable std::mutex m_drop_queue_mutex;
+
+		// tracing with simple number count
+		int tracing_control_loop_num;
+		int64_t tracing_ingress_total_pkts;
+		int64_t tracing_ingress_drop;
+		int64_t tracing_egress_total_pkts;
+		int64_t tracing_egress_drop;
+		int64_t tracing_port_drop;
+		int64_t tracing_total_in_pkts;
+		int64_t tracing_total_out_pkts;
+		int64_t tracing_recirculation_pkts;
 
 		std::map<int64_t, DelayJitterEstimationTimestampTag> tag_map;
 
@@ -150,7 +162,7 @@ class P4Model : public Switch {
 		 * @param traceDropOld Only trace the pkts drop in p4.
 		 */
 		void SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2, bool traceDrop, bool traceDropOld);
+		std::string dest1, std::string dest2);
 
 		//void start_and_return_schedule();
 
@@ -235,8 +247,8 @@ class P4Model : public Switch {
 		int InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetParserBasic *tp = nullptr);
 
 		/*tracing*/
-		bool TraceAllDropInBmv2(bm::PHV *phv);
-		bool RecordAllDropInfo(int queue_id);
+		// bool TraceAllDropInBmv2(bm::PHV *phv);
+		// bool RecordAllDropInfo(int queue_id);
 	
 	private:
 		static constexpr size_t nb_egress_threads = 4u; // 4u default in bmv2, but in ns-3 make sure safe
