@@ -1012,6 +1012,7 @@ void P4Model::egress_thread(size_t worker_id)
 
         // @mingyu
         if (p4_switch_ID == 1) {
+            // std::cout << "port:" << port << " priority:" << priority << std::endl;
             int queue_id = -1;
             if (phv->has_field("scalars.userMetadata._codel_queue_id13")) {
                 queue_id = phv->get_field("scalars.userMetadata._codel_queue_id13").get_int();
