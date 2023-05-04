@@ -1010,6 +1010,43 @@ void P4Model::egress_thread(size_t worker_id)
 
         egress_mau->apply(packet.get());
 
+        // @mingyu
+        if (p4_switch_ID == 1) {
+            int queue_id = -1;
+            if (phv->has_field("scalars.userMetadata._codel_queue_id13")) {
+                queue_id = phv->get_field("scalars.userMetadata._codel_queue_id13").get_int();
+            }
+            int current_queue_threshold_max = -1;
+            if (phv->has_field("scalars.current_queue_threshold_max_0")) {
+                current_queue_threshold_max = phv->get_field("scalars.current_queue_threshold_max_0").get_int();
+            }
+            int current_queue_threshold_min = -1;
+            if (phv->has_field("scalars.current_queue_threshold_min_0")) {
+                current_queue_threshold_min = phv->get_field("scalars.current_queue_threshold_min_0").get_int();
+            }
+            int deq_queue_length = -1;
+            if (phv->has_field("queueing_metadata.deq_qdepth")) {
+                deq_queue_length = phv->get_field("queueing_metadata.deq_qdepth").get_int();
+            }
+            int enq_queue_length = -1;
+            if (phv->has_field("queueing_metadata.enq_qdepth")) {
+                enq_queue_length = phv->get_field("queueing_metadata.enq_qdepth").get_int();
+            }
+
+            std::string filename = "./scratch-data/p4-codel/egress_queue_state.csv";
+            std::ofstream dropFile(filename, std::ios::app);
+            if (dropFile.is_open()) {
+                dropFile << 
+                queue_id << "," <<
+                current_queue_threshold_min << "," <<
+                enq_queue_length << "," <<
+                deq_queue_length << "," <<
+                current_queue_threshold_max << std::endl;
+            }
+            dropFile.close();
+        }
+
+
         auto clone_mirror_session_id = RegisterAccess::get_clone_mirror_session_id(packet.get());
         auto clone_field_list = RegisterAccess::get_clone_field_list(packet.get());
 
