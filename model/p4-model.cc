@@ -694,6 +694,27 @@ void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
         bm::Logger::get()->error("Priority out of range, dropping packet");
         return;
     }
+
+    if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
+        if (p4_switch_ID == 1){ 
+            int64_t src_pkt_id = -1;
+                if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                    src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+                } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                    src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+                } else {
+                    std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+                }      
+            ts_res times = get_ts();
+            std::string filename = "./scratch-data/p4-codel/emu_in_queue.csv";
+            std::ofstream emu_delay_file(filename, std::ios::app);
+            if (emu_delay_file.is_open()) {
+                emu_delay_file <<"EmuQIn," << src_pkt_id << "," << times.count() << std::endl;
+            }
+            emu_delay_file.close();
+        }
+    }
+
     // here push into the queue, if set the queue process rate for pkts with priority,
     // they maybe will drop if the queue is full for one priority.
     egress_buffers.push_front(
@@ -983,6 +1004,34 @@ void P4Model::egress_thread(size_t worker_id)
         Pipeline* egress_mau = this->get_pipeline("egress");
 
         phv = packet->get_phv();
+
+        if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
+            if (p4_switch_ID == 1){
+                int priority = -1;
+                PHV* phv = packet->get_phv();
+                if (phv->has_field("standard_metadata.priority")) {
+                    priority = phv->get_field("standard_metadata.priority").get_int();
+                }
+
+                int64_t src_pkt_id = -1;
+                if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                    src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+                } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                    src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+                } else {
+                    std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+                }
+
+                ts_res times = get_ts();
+                std::string filename = "./scratch-data/p4-codel/emu_out_queue.csv";
+                std::ofstream emu_delay_file(filename, std::ios::app);
+                if (emu_delay_file.is_open()) {
+                    emu_delay_file <<"EmuQOut," << src_pkt_id << "," << 
+                        priority << "," << times.count()<< std::endl;
+                }
+                emu_delay_file.close();
+            }
+        }
 
         tracing_egress_total_pkts++;
 
