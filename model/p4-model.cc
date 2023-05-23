@@ -850,7 +850,6 @@ void P4Model::ingress_thread()
                 break;
             }
             default: {
-                std::cout << "Error priority for tracing the pkts drop!" << std::endl;
             }
         }
         if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
@@ -1451,7 +1450,6 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
                 break;
             } 
             default:{
-                std::cout << "Error priority for tracing the pkts drop!" << std::endl;
             }
         }
 
