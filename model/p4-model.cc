@@ -1202,7 +1202,7 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         if (packetIn->FindFirstMatchingByteTag(djtag)) {
             m_tag_queue_mutex.lock();
             tag_map.insert (std::pair<int64_t, DelayJitterEstimationTimestampTag>(m_pktID, djtag) );
-            std::cout << "add tag" << m_pktID << std::endl;
+            // std::cout << "add tag" << m_pktID << std::endl;
             m_tag_queue_mutex.unlock();
         }
     }
@@ -1376,11 +1376,11 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
                 DelayJitterEstimationTimestampTag rdjtag = tag_map.find(src_pkt_id)->second;
                 ns3Packet.AddByteTag(rdjtag);
                 tag_map.erase (src_pkt_id); // Clear the item to avoid excessive map
-                std::cout << "Tag get!" << src_pkt_id << std::endl;
+                // std::cout << "Tag get!" << src_pkt_id << std::endl;
             }
-            else {
-                std::cout << "No tag for sending out with id:" << src_pkt_id << std::endl;
-            }
+            // else {
+            //     std::cout << "No tag for sending out with id:" << src_pkt_id << std::endl;
+            // }
             m_tag_queue_mutex.unlock();
         }
         
