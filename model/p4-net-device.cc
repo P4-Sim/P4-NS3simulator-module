@@ -105,16 +105,14 @@ P4NetDevice::P4NetDevice() :
 	char * args[2] = { NULL,a3 };
 	p4Model->init(2, args);
 
-	//TO DO: call P4Model start_and_return_ ,start mutiple thread @mingyu
-	p4Model->start_and_return_(); // UNSAFE with multithread
-	/*assert failed. cond="SystemThread::Equals (m_main)", msg="Simulator::Schedule 
-	Thread-unsafe invocation!", file=../src/core/model/default-simulator-impl.cc, line=231*/
+	// start mutiple thread
+	p4Model->start_and_return_();
 
-	//Init P4Model Flow Table
+	// Init P4Model Flow Table
 	if (P4GlobalVar::g_populateFlowTableWay == LOCAL_CALL)
 		p4Switch->Init();
-
 	p4Switch = NULL;
+	
 	NS_LOG_LOGIC("A P4 Netdevice was initialized.");
 }
 

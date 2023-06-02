@@ -248,40 +248,15 @@ private:
     QueueImpl queue_lo;
 };
 
-/*
-P4Model::P4Model(P4NetDevice* netDevice) :
-        m_pre(new bm::McSimplePre()) {
-        //! A simple, 2-level, packet replication engine, configurable by the control
-        //! plane. See replicate() for more information.
-        m_pNetDevice = netDevice;
-
-        add_component<bm::McSimplePre>(m_pre);
-
-        m_argParser = new bm::TargetParserBasic();
-        add_required_field("standard_metadata", "ingress_port");	// sm14, v1m
-        add_required_field("standard_metadata", "packet_length");	// sm14, v1m
-        add_required_field("standard_metadata", "instance_type");	// sm14, v1m
-        add_required_field("standard_metadata", "egress_spec");		// sm14, v1m
-        add_required_field("standard_metadata", "egress_port");		// sm14, v1m
-        //add_required_field("standard_metadata", "egress_instance"); // sm14
-        //add_required_field("standard_metadata", "checksum_error"); 	// v1m
-
-    force_arith_header("standard_metadata");
-    force_arith_header("queueing_metadata");
-    force_arith_header("intrinsic_metadata");
-
-        import_primitives();
-}*/
-
 P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     port_t drop_port, size_t nb_queues_per_port)
     : Switch(enable_swap)
     , drop_port(drop_port)
     , input_buffer(new InputBuffer(
-          1024 /* normal capacity */, 1024 /* resubmit/recirc capacity */))
+          10240 /* normal capacity */, 1024 /* resubmit/recirc capacity */))
     , nb_queues_per_port(nb_queues_per_port)
     , egress_buffers(nb_egress_threads,
-          64, EgressThreadMapper(nb_egress_threads),
+          10240, EgressThreadMapper(nb_egress_threads),
           nb_queues_per_port)
     , output_buffer(128)
     ,
@@ -396,6 +371,13 @@ int P4Model::init(int argc, char* argv[])
         // ！======The second part: init the sw flow table settings.
         int port = get_runtime_port();
         bm_runtime::start_server(this, port);
+
+        /* @todo this should be added for start the thrift server*/
+        // using ::sswitch_runtime::SimpleSwitchIf;
+        // using ::sswitch_runtime::SimpleSwitchProcessor;
+        // bm_runtime::add_service<SimpleSwitchIf, SimpleSwitchProcessor>(
+        // "simple_switch", sswitch_runtime::get_handler(this));
+
         std::this_thread::sleep_for(std::chrono::seconds(P4GlobalVar::g_runtimeCliTime));
 
         // Run the CLI commands to populate table entries
@@ -456,13 +438,10 @@ int P4Model::receive_(port_t port_num, const char* buffer, int len)
     BMELOG(packet_in, *packet);
 #endif
     PHV* phv = packet->get_phv();
-    // many current P4 programs assume this
-    // it is also part of the original P4 spec
     phv->reset_metadata();
     RegisterAccess::clear_all(packet.get());
 
     // setting standard metadata
-
     phv->get_field("standard_metadata.ingress_port").set(port_num);
     // using packet register 0 to store length, this register will be updated for
     // each add_header / remove_header primitive call
@@ -497,23 +476,6 @@ void P4Model::start_and_return_()
     }
     threads_.push_back(std::thread(&P4Model::transmit_thread, this)); // make this part with main thread
 }
-
-/**
- * @brief Multithread support in ns3 local
- * 
- */
-// void P4Model::start_and_return_schedule()
-// {
-//     /*在使用Simulator::Schedule()方法时，需要确保foo函数的执行时间不会超过调度周期，
-//     否则会导致仿真不准确。如果foo函数的执行时间较长，可以考虑将其拆分为多个子任务，
-//     分别调度到不同的后台线程中运行*/
-//     float recirclation_time = 1 / 
-//     check_queueing_metadata();
-//     Simulator::Schedule (Seconds (0.0), &P4Model::ingress_thread);
-//     for (size_t i = 0; i < nb_egress_threads; i++) {
-//         Simulator::Schedule (Seconds (0.0), &P4Model::ingress_thread);
-//     }
-// }
 
 void P4Model::swap_notify_()
 {
@@ -715,8 +677,6 @@ void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
         }
     }
 
-    // here push into the queue, if set the queue process rate for pkts with priority,
-    // they maybe will drop if the queue is full for one priority.
     egress_buffers.push_front(
         egress_port, nb_queues_per_port - 1 - priority,
         std::move(packet));
@@ -823,45 +783,6 @@ void P4Model::ingress_thread()
         ingress_mau->apply(packet.get());
 
         packet->reset_exit();
-        
-        /*  Here we set the priority with num ID, they should set this after 
-        we doing slice priority (which in p4 ingress progress), in order 
-        to using priority_id for trace drop. But also should before the 
-        ingress and egress Enqueue, which will drop by the priority.
-        @mingyu*/
-        int priority = -1;
-        if (phv->has_field("standard_metadata.priority")) {
-            priority = phv->get_field("standard_metadata.priority").get_int();
-        }
-        m_drop_queue_mutex.lock();
-        int64_t temp_drop_tracer_value = 0;
-        switch (priority) {
-            case 0: {
-                // No need for mutex lock, only one ingress thread do operation
-                temp_drop_tracer_value = drop_tracer.send_num_0++;
-                break;
-            }
-            case 3: {
-                temp_drop_tracer_value = drop_tracer.send_num_3++;
-                break;
-            }
-            case 7: {
-                temp_drop_tracer_value = drop_tracer.send_num_7++;
-                break;
-            }
-            default: {
-            }
-        }
-        if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
-            phv->get_field(P4GlobalVar::ns3i_priority_id_1)
-                .set(temp_drop_tracer_value);
-        } else if (phv->has_field(P4GlobalVar::ns3i_priority_id_2)) {
-            phv->get_field(P4GlobalVar::ns3i_priority_id_2)
-                .set(temp_drop_tracer_value);
-        } else {
-            std::cout << "temp_drop_tracer_value set failed." << std::endl;
-        }
-        m_drop_queue_mutex.unlock();
 
         Field& f_egress_spec = phv->get_field("standard_metadata.egress_spec");
         port_t egress_spec = f_egress_spec.get_uint();
@@ -1394,8 +1315,6 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
         m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
         
         // ======================= P4GlobalVar::ns3_p4_tracing_drop ===================== 
-        
-
         if (P4GlobalVar::ns3_p4_tracing_drop) {
             if (drop_tracer.one_loop_num < 100){
                 // one hundred pkts write once.
@@ -1468,7 +1387,7 @@ void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
                         tracing_ingress_total_pkts << "," << tracing_ingress_drop << "," <<
                         tracing_egress_total_pkts << "," << tracing_egress_drop << "," <<
                         tracing_recirculation_pkts << "," << tracing_port_drop << "," <<
-                        Simulator::Now () << std::endl;
+                        Simulator::Now () << "," << get_ts().count() << std::endl;
                     }
                     dropFile.close();
                 }

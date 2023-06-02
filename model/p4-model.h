@@ -251,7 +251,7 @@ class P4Model : public Switch {
 		// bool RecordAllDropInfo(int queue_id);
 	
 	private:
-		static constexpr size_t nb_egress_threads = 4u; // 4u default in bmv2, but in ns-3 make sure safe
+		static constexpr size_t nb_egress_threads = 2u; // 4u default in bmv2, but in ns-3 make sure safe
 		static packet_id_t packet_id;
 
 		class MirroringSessions;
