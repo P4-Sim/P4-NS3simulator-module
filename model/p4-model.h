@@ -53,17 +53,7 @@
 #include "ns3/p4-controller.h"
 #include "ns3/p4-net-device.h"
 
-// TODO(antonin)
-// experimental support for priority queueing
-// to enable it, uncomment this flag
-// you can also choose the field from which the priority value will be read, as
-// well as the number of priority queues per port
-// PRIORITY 0 IS THE LOWEST PRIORITY
 #define SSWITCH_PRIORITY_QUEUEING_SRC "intrinsic_metadata.priority"
-
-using ts_res = std::chrono::microseconds;
-using std::chrono::duration_cast;
-using ticks = std::chrono::nanoseconds;
 
 using bm::Switch;
 using bm::Queue;
@@ -103,70 +93,21 @@ class P4NetDevice;
 class P4Model : public Switch {
 	public:
 		// P4Model(P4NetDevice* netDevice);
-		
 		static TypeId GetTypeId(void);
 
 		std::vector<Address> destination_list;						//!< list for address, using by index
 		int address_num;											//!< index of address.
 		int p4_switch_ID;											//!< the total drop packages number
-		std::queue<std::unique_ptr<bm::Packet>> bm_queue;			//!< SYNC infomation Queue
-		std::queue<std::unique_ptr<bm::Packet>> re_bm_queue;		//!< re_bm_queue for saving pkts from bm_queue
-
-		struct DropTracing {
-			int64_t send_num_7;
-			int64_t send_num_3;
-			int64_t send_num_0;
-			int64_t receive_num_7;
-			int64_t receive_num_3;
-			int64_t receive_num_0;
-			int one_loop_num;
-		} drop_tracer;
-		mutable std::mutex m_drop_queue_mutex;
-
-		// tracing with simple number count
-		int tracing_control_loop_num;
-		int64_t tracing_ingress_total_pkts;
-		int64_t tracing_ingress_drop;
-		int64_t tracing_egress_total_pkts;
-		int64_t tracing_egress_drop;
-		int64_t tracing_port_drop;
-		int64_t tracing_total_in_pkts;
-		int64_t tracing_total_out_pkts;
-		int64_t tracing_recirculation_pkts;
-
 		std::map<int64_t, DelayJitterEstimationTimestampTag> tag_map;
-
-		mutable std::mutex m_pkt_queue_mutex;
-		mutable std::mutex m_tag_queue_mutex;
-
-		/**
-		 * @brief The old method for processing pkts with bmv2.
-		 * This is simple parser, no other processing.
-		 * 
-		 * @param packetIn ns3::Packet get in netdecive
-		 * @param inPort 
-		 * @param protocol ns3 sending protocol, Z.B. arp
-		 * @param destination 
-		 * @return int 
-		 */
-		int ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
-    		uint16_t protocol, Address const& destination);
-
-		/**
-		 * @brief For the simulation, this should be add with 
-		 * Simulator::Schedule (MicroSeconds (1) ...)
-		 * 
-		 * @param proto1 the p4 json variables name for switch 1 to record the protocol
-		 * @param proto2 the p4 json variables name for switch 2 to record the protocol
-		 * @param dest1 the p4 json variables name for switch 1 to record the ns3 pkts destination index
-		 * @param dest2 the p4 json variables name for switch 2 to record the ns3 pkts destination index
-		 * @param traceDrop True or False, trace the drop total.
-		 * @param traceDropOld Only trace the pkts drop in p4.
-		 */
-		void SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2);
-
-		//void start_and_return_schedule();
+		
+		// time event for thread local
+		EventId m_ingressTimerEvent;              					//!< The timer event ID [Ingress]
+		Time m_ingressTimeReference;        	  					//!< Desired time between timer event triggers
+		size_t worker_id;											//!< worker_id = threads_id, here only one
+		EventId m_egressTimerEvent;              					//!< The timer event ID [Egress]
+		Time m_egressTimeReference;        	  						//!< Desired time between timer event triggers
+		EventId m_transmitTimerEvent;              					//!< The timer event ID [Transfer]
+		Time m_transmitTimeReference;        	  					//!< Desired time between timer event triggers
 
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
@@ -218,17 +159,10 @@ class P4Model : public Switch {
 		int set_egress_queue_rate(size_t port, const uint64_t rate_pps);
 		int set_all_egress_queue_rates(const uint64_t rate_pps);
 
-		// returns the number of microseconds elapsed since the switch started
-		uint64_t get_time_elapsed_us() const;
-
-		// returns the number of microseconds elasped since the clock's epoch
-		uint64_t get_time_since_epoch_us() const;
-
 		// returns the packet id of most recently received packet. Not thread-safe.
 		static packet_id_t get_packet_id() {
 			return packet_id - 1;
 		}
-		void set_transmit_fn(TransmitFn fn);
 
 		port_t get_drop_port() const {
 			return drop_port;
@@ -239,13 +173,6 @@ class P4Model : public Switch {
 		P4Model(P4Model &&) = delete;
 		P4Model &&operator =(P4Model &&) = delete;
 
-		// time event
-		EventId m_ingressTimerEvent;              //!< The timer event ID
-		Time m_ingressTimeReference;        	  //!< Desired time between timer event triggers
-		size_t worker_id;
-		EventId m_egressTimerEvent;              	//!< The timer event ID
-		Time m_egressTimeReference;        	  		//!< Desired time between timer event triggers
-
 		// ns3-p4
 		int ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort, uint16_t protocol, Address const &destination);
 		int init(int argc, char *argv[]);
@@ -254,15 +181,8 @@ class P4Model : public Switch {
 		* \brief configure switch with json file
 		*/
 		int InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetParserBasic *tp = nullptr);
-
-		/*tracing*/
-		// bool TraceAllDropInBmv2(bm::PHV *phv);
-		// bool RecordAllDropInfo(int queue_id);
 	
 	private:
-		void RunIngressTimerEvent ();
-		void RunEgressTimerEvent ();
-		
 		static constexpr size_t nb_egress_threads = 1u; // 4u default in bmv2, but in ns-3 make sure safe
 		static packet_id_t packet_id;
 
@@ -292,12 +212,13 @@ class P4Model : public Switch {
 		};
 
 	private:
-		void ingress_pipeline(std::unique_ptr<bm::Packet> packet);
 		void ingress_thread();
 		void egress_thread(size_t worker_id);
 		void transmit_thread();
 
-		ts_res get_ts() const;
+		void RunIngressTimerEvent ();
+		void RunEgressTimerEvent ();
+		void RunTransmitTimerEvent ();
 
 		// TODO(antonin): switch to pass by value?
 		void enqueue(port_t egress_port, std::unique_ptr<bm::Packet> &&packet);
@@ -328,11 +249,7 @@ class P4Model : public Switch {
 		std::unique_ptr<MirroringSessions> mirroring_sessions;
 
 		int64_t m_pktID = 0;								//!< Packet ID
-		int64_t m_re_pktID = 0;
-		TracedValue<int64_t> m_qDropNum_1;        		//!< Number of the pkts drops in 1 queue
-		TracedValue<int64_t> m_qDropNum_2;        		//!< Number of the pkts drops in 2 queue
-		TracedValue<int64_t> m_qDropNum_3;        		//!< Number of the pkts drops in 3 queue
-		TracedValue<int64_t> m_dropNum;					//!< Number of the pkts drops (passive droped)
+		int64_t m_re_pktID = 0;								//!< Receiver side Packet ID
 
 		bm::TargetParserBasic * m_argParser; 		//!< Structure of parsers
 
