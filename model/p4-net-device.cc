@@ -159,8 +159,9 @@ void P4NetDevice::SendNs3Packet(Ptr<ns3::Packet> packetOut, int outPort, uint16_
 			Ptr<NetDevice> outNetDevice = GetBridgePort(outPort);
 			outNetDevice->Send(packetOut->Copy(), destination, protocol);
 		}
-		else
-			std::cout << "Drop Packet!!!(511)\n";
+		// else{
+		// 	std::cout << "drop 511" << std::endl;
+		// }
 	}
 	else
 		std::cout << "Null Packet!\n";

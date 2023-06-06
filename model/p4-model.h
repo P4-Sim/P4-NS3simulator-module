@@ -33,6 +33,8 @@
 #include "ns3/uinteger.h"
 #include "ns3/traced-value.h"
 #include "ns3/delay-jitter-estimation.h"
+#include "ns3/event-id.h"
+#include "ns3/nstime.h"
 #include <bm/bm_sim/queue.h>
 #include <bm/bm_sim/queueing.h>
 #include <bm/bm_sim/packet.h>
@@ -237,6 +239,13 @@ class P4Model : public Switch {
 		P4Model(P4Model &&) = delete;
 		P4Model &&operator =(P4Model &&) = delete;
 
+		// time event
+		EventId m_ingressTimerEvent;              //!< The timer event ID
+		Time m_ingressTimeReference;        	  //!< Desired time between timer event triggers
+		size_t worker_id;
+		EventId m_egressTimerEvent;              	//!< The timer event ID
+		Time m_egressTimeReference;        	  		//!< Desired time between timer event triggers
+
 		// ns3-p4
 		int ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort, uint16_t protocol, Address const &destination);
 		int init(int argc, char *argv[]);
@@ -251,7 +260,10 @@ class P4Model : public Switch {
 		// bool RecordAllDropInfo(int queue_id);
 	
 	private:
-		static constexpr size_t nb_egress_threads = 2u; // 4u default in bmv2, but in ns-3 make sure safe
+		void RunIngressTimerEvent ();
+		void RunEgressTimerEvent ();
+		
+		static constexpr size_t nb_egress_threads = 1u; // 4u default in bmv2, but in ns-3 make sure safe
 		static packet_id_t packet_id;
 
 		class MirroringSessions;
@@ -280,6 +292,7 @@ class P4Model : public Switch {
 		};
 
 	private:
+		void ingress_pipeline(std::unique_ptr<bm::Packet> packet);
 		void ingress_thread();
 		void egress_thread(size_t worker_id);
 		void transmit_thread();
