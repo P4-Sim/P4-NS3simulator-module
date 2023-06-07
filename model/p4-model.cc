@@ -217,6 +217,10 @@ public:
             }
         }
     }
+    size_t get_size ()
+    {
+        return capacity_hi + capacity_lo;
+    }
 
 private:
     using Mutex = std::mutex;
@@ -294,9 +298,9 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     m_egressTimerEvent = EventId(); // default initial value
     m_transmitTimerEvent = EventId(); // default initial value
     // default time setting for event loop.
-    m_ingressTimeReference = Time("100us");
-    m_egressTimeReference = Time("100us");
-    m_transmitTimeReference = Time("100us");
+    m_ingressTimeReference = Time("1ms");
+    m_egressTimeReference = Time("1ms");
+    m_transmitTimeReference = Time("500us");
 
     // ns3 settings init @mingyu
     address_num = 0;
@@ -510,9 +514,9 @@ P4Model::~P4Model()
             continue;
     }
     output_buffer.push_front(nullptr);
-    for (auto& thread_ : threads_) {
-        thread_.join();
-    }
+    // for (auto& thread_ : threads_) {
+    //     thread_.join();
+    // }
 }
 
 void P4Model::reset_target_state_()
@@ -632,6 +636,34 @@ void P4Model::transmit_thread()
     Ptr<ns3::Packet> packetOut(&ns3Packet);
 
     m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
+
+    if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
+        if (p4_switch_ID == 1){
+            int priority = -1;
+            PHV* phv = packet->get_phv();
+            if (phv->has_field("standard_metadata.priority")) {
+                priority = phv->get_field("standard_metadata.priority").get_int();
+            }
+
+            int64_t src_pkt_id = -1;
+            if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+            } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+            } else {
+                std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+            }
+
+            ts_res times = get_ts();
+            std::string filename = "./scratch-data/p4-codel/emu_delay_out_switch.csv";
+            std::ofstream emu_delay_file(filename, std::ios::app);
+            if (emu_delay_file.is_open()) {
+                emu_delay_file <<"EmuOut," << src_pkt_id << "," << 
+                    priority << "," << times.count()<< std::endl;
+            }
+            emu_delay_file.close();
+        }
+    }
 }
 
 void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
@@ -656,6 +688,26 @@ void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
     egress_buffers.push_front(
         egress_port, nb_queues_per_port - 1 - priority,
         std::move(packet));
+    
+    if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
+        if (p4_switch_ID == 1){ 
+            int64_t src_pkt_id = -1;
+            if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+            } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+            } else {
+                std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+            }      
+            ts_res times = get_ts();
+            std::string filename = "./scratch-data/p4-codel/emu_in_queue.csv";
+            std::ofstream emu_delay_file(filename, std::ios::app);
+            if (emu_delay_file.is_open()) {
+                emu_delay_file <<"EmuQIn," << src_pkt_id << "," << times.count() << std::endl;
+            }
+            emu_delay_file.close();
+        }
+    }
 }
 
 // used for ingress cloning, resubmit
@@ -907,6 +959,33 @@ void P4Model::egress_thread(size_t worker_id)
 
     phv = packet->get_phv();
 
+    if (P4GlobalVar::ns3_p4_tracing_dalay_emu) {
+        if (p4_switch_ID == 1){
+            int priority = -1;
+            PHV* phv = packet->get_phv();
+            if (phv->has_field("standard_metadata.priority")) {
+                priority = phv->get_field("standard_metadata.priority").get_int();
+            }
+
+            int64_t src_pkt_id = -1;
+            if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+            } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+            } else {
+                std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+            }
+
+            ts_res times = get_ts();
+            std::string filename = "./scratch-data/p4-codel/emu_out_queue.csv";
+            std::ofstream emu_delay_file(filename, std::ios::app);
+            if (emu_delay_file.is_open()) {
+                emu_delay_file <<"EmuQOut," << src_pkt_id << "," << 
+                    priority << "," << times.count()<< std::endl;
+            }
+            emu_delay_file.close();
+        }
+    }        
     if (phv->has_field("intrinsic_metadata.egress_global_timestamp")) {
         phv->get_field("intrinsic_metadata.egress_global_timestamp")
             .set(Simulator::Now().GetMicroSeconds());
@@ -1102,7 +1181,7 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             std::cout << "destination address set from ns3 -> bmv2 failed." << std::endl;
         }
 
-        // tracing: add tag with m_pktID
+        // ==========================packet id==========================
         if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
             phv->get_field(P4GlobalVar::ns3i_pkts_id_1).set(m_pktID-1);
         } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
@@ -1114,6 +1193,18 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         input_buffer->push_front(
             InputBuffer::PacketType::NORMAL, std::move(packet));
         
+        if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
+            if (p4_switch_ID == 1){
+                std::string filename = "./scratch-data/p4-codel/emu_delay_in_switch.csv";
+                std::ofstream emu_delay_file(filename, std::ios::app);
+                if (emu_delay_file.is_open()) {
+                    ts_res times = get_ts();
+                    emu_delay_file <<"EmuIn," << m_pktID-1 << "," << times.count() << std::endl;
+                }
+                emu_delay_file.close();
+            }
+        }
+
         return 0;
     }
     return -1;
@@ -1124,11 +1215,20 @@ P4Model::RunIngressTimerEvent ()
 {
     // NS_LOG_FUNCTION (this);
     // NS_LOG_INFO ("Executing timer event for Ingress_thread");
-        
-    this->ingress_thread();
+    size_t size = input_buffer->get_size();
+    if (size > 0) {
+        this->ingress_thread();
+    }
+    if (size > 10) {
+        // Reschedule timer event
+        m_ingressTimerEvent = Simulator::Schedule (Time("100us"), &P4Model::RunIngressTimerEvent, this);
+    }
+    else {
+        // Reschedule timer event
+        m_ingressTimerEvent = Simulator::Schedule (Time("1ms"), &P4Model::RunIngressTimerEvent, this);
+    }
 
-    // Reschedule timer event
-    m_ingressTimerEvent = Simulator::Schedule (m_ingressTimeReference, &P4Model::RunIngressTimerEvent, this);
+    
 }
 
 void
@@ -1136,7 +1236,7 @@ P4Model::RunEgressTimerEvent ()
 {
     // NS_LOG_FUNCTION (this);
     // NS_LOG_INFO ("Executing timer event for Egress_thread");
-        
+    
     this->egress_thread(worker_id);
 
     // Reschedule timer event
@@ -1153,4 +1253,9 @@ P4Model::RunTransmitTimerEvent ()
 
     // Reschedule timer event
     m_transmitTimerEvent = Simulator::Schedule (m_transmitTimeReference, &P4Model::RunTransmitTimerEvent, this);
+}
+
+ts_res P4Model::get_ts() const
+{
+    return duration_cast<ts_res>(clock::now() - start); // rewrite? check out the point
 }

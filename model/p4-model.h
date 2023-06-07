@@ -55,6 +55,10 @@
 
 #define SSWITCH_PRIORITY_QUEUEING_SRC "intrinsic_metadata.priority"
 
+using ts_res = std::chrono::microseconds;
+using std::chrono::duration_cast;
+using ticks = std::chrono::nanoseconds;
+
 using bm::Switch;
 using bm::Queue;
 using bm::Packet;
@@ -219,6 +223,8 @@ class P4Model : public Switch {
 		void RunIngressTimerEvent ();
 		void RunEgressTimerEvent ();
 		void RunTransmitTimerEvent ();
+
+		ts_res get_ts() const;
 
 		// TODO(antonin): switch to pass by value?
 		void enqueue(port_t egress_port, std::unique_ptr<bm::Packet> &&packet);
