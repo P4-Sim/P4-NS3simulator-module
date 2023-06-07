@@ -33,6 +33,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/traced-value.h"
 #include "ns3/delay-jitter-estimation.h"
+#include "ns3/event-id.h"
 #include <bm/bm_sim/queue.h>
 #include <bm/bm_sim/queueing.h>
 #include <bm/bm_sim/packet.h>
@@ -107,8 +108,6 @@ class P4Model : public Switch {
 		std::vector<Address> destination_list;						//!< list for address, using by index
 		int address_num;											//!< index of address.
 		int p4_switch_ID;											//!< the total drop packages number
-		std::queue<std::unique_ptr<bm::Packet>> bm_queue;			//!< SYNC infomation Queue
-		std::queue<std::unique_ptr<bm::Packet>> re_bm_queue;		//!< re_bm_queue for saving pkts from bm_queue
 
 		struct DropTracing {
 			int64_t send_num_7;
@@ -133,38 +132,12 @@ class P4Model : public Switch {
 		int64_t tracing_recirculation_pkts;
 
 		std::map<int64_t, DelayJitterEstimationTimestampTag> tag_map;
+		
+		// time event for thread local
+		EventId m_transmitTimerEvent;              					//!< The timer event ID [Transfer]
+		Time m_transmitTimeReference;
 
-		mutable std::mutex m_pkt_queue_mutex;
 		mutable std::mutex m_tag_queue_mutex;
-
-		/**
-		 * @brief The old method for processing pkts with bmv2.
-		 * This is simple parser, no other processing.
-		 * 
-		 * @param packetIn ns3::Packet get in netdecive
-		 * @param inPort 
-		 * @param protocol ns3 sending protocol, Z.B. arp
-		 * @param destination 
-		 * @return int 
-		 */
-		int ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
-    		uint16_t protocol, Address const& destination);
-
-		/**
-		 * @brief For the simulation, this should be add with 
-		 * Simulator::Schedule (MicroSeconds (1) ...)
-		 * 
-		 * @param proto1 the p4 json variables name for switch 1 to record the protocol
-		 * @param proto2 the p4 json variables name for switch 2 to record the protocol
-		 * @param dest1 the p4 json variables name for switch 1 to record the ns3 pkts destination index
-		 * @param dest2 the p4 json variables name for switch 2 to record the ns3 pkts destination index
-		 * @param traceDrop True or False, trace the drop total.
-		 * @param traceDropOld Only trace the pkts drop in p4.
-		 */
-		void SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2);
-
-		//void start_and_return_schedule();
 
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
@@ -245,10 +218,6 @@ class P4Model : public Switch {
 		* \brief configure switch with json file
 		*/
 		int InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetParserBasic *tp = nullptr);
-
-		/*tracing*/
-		// bool TraceAllDropInBmv2(bm::PHV *phv);
-		// bool RecordAllDropInfo(int queue_id);
 	
 	private:
 		static constexpr size_t nb_egress_threads = 4u; // 4u default in bmv2, but in ns-3 make sure safe
@@ -284,6 +253,8 @@ class P4Model : public Switch {
 		void egress_thread(size_t worker_id);
 		void transmit_thread();
 
+		void RunTransmitTimerEvent();
+
 		ts_res get_ts() const;
 
 		// TODO(antonin): switch to pass by value?
@@ -316,12 +287,8 @@ class P4Model : public Switch {
 
 		int64_t m_pktID = 0;								//!< Packet ID
 		int64_t m_re_pktID = 0;
-		TracedValue<int64_t> m_qDropNum_1;        		//!< Number of the pkts drops in 1 queue
-		TracedValue<int64_t> m_qDropNum_2;        		//!< Number of the pkts drops in 2 queue
-		TracedValue<int64_t> m_qDropNum_3;        		//!< Number of the pkts drops in 3 queue
-		TracedValue<int64_t> m_dropNum;					//!< Number of the pkts drops (passive droped)
 
-		bm::TargetParserBasic * m_argParser; 		//!< Structure of parsers
+		bm::TargetParserBasic * m_argParser; 			//!< Structure of parsers
 
 		/**
 		* A simple, 2-level, packet replication engine,

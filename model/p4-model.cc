@@ -318,6 +318,11 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     static int switch_id = 1;
     p4_switch_ID = switch_id++;
 
+    // event for threads local
+    m_transmitTimerEvent = EventId(); // default initial value
+    // default time setting for event loop.
+    m_transmitTimeReference = Time("10us");
+
     drop_tracer.send_num_7 = 0;
     drop_tracer.send_num_3 = 0;
     drop_tracer.send_num_0 = 0;
@@ -489,31 +494,21 @@ void P4Model::start_and_return_()
 {
     check_queueing_metadata();
 
-    //uint32_t ctx = ns3::Simulator::GetContext();
-
+    // ingress thread
     threads_.push_back(std::thread(&P4Model::ingress_thread, this));
+    
+    // egress threads
     for (size_t i = 0; i < nb_egress_threads; i++) {
         threads_.push_back(std::thread(&P4Model::egress_thread, this, i));
     }
-    threads_.push_back(std::thread(&P4Model::transmit_thread, this)); // make this part with main thread
-}
 
-/**
- * @brief Multithread support in ns3 local
- * 
- */
-// void P4Model::start_and_return_schedule()
-// {
-//     /*在使用Simulator::Schedule()方法时，需要确保foo函数的执行时间不会超过调度周期，
-//     否则会导致仿真不准确。如果foo函数的执行时间较长，可以考虑将其拆分为多个子任务，
-//     分别调度到不同的后台线程中运行*/
-//     float recirclation_time = 1 / 
-//     check_queueing_metadata();
-//     Simulator::Schedule (Seconds (0.0), &P4Model::ingress_thread);
-//     for (size_t i = 0; i < nb_egress_threads; i++) {
-//         Simulator::Schedule (Seconds (0.0), &P4Model::ingress_thread);
-//     }
-// }
+    // start the transmit local thread
+    if (!m_egressTimeReference.IsZero())
+    {
+        // NS_LOG_INFO ("Scheduling initial timer event using m_egressTimeReference = " << m_egressTimeReference.GetNanoSeconds() << " ns");
+        m_transmitTimerEvent = Simulator::Schedule (m_transmitTimeReference, &P4Model::RunTransmitTimerEvent, this);
+    }
+}
 
 void P4Model::swap_notify_()
 {
@@ -621,54 +616,88 @@ void P4Model::set_transmit_fn(TransmitFn fn)
 
 void P4Model::transmit_thread()
 {   
-    // bmv2 packet
-    while (1) {
-        std::unique_ptr<bm::Packet> packet;
-        output_buffer.pop_back(&packet);
-        if (packet == nullptr)
-            break;
+    
+    std::unique_ptr<bm::Packet> packet;
+
+    if (output_buffer.size() == 0) {
+        return;
+    }
+    output_buffer.pop_back(&packet);
+    if (packet == nullptr)
+        return;
 #ifdef BMNANOMSG_ON
-        BMELOG(packet_out, *packet);
-        BMLOG_DEBUG_PKT(*packet, "Transmitting packet of size {} out of port {}",
-            packet->get_data_size(), packet->get_egress_port());
+    BMELOG(packet_out, *packet);
+    BMLOG_DEBUG_PKT(*packet, "Transmitting packet of size {} out of port {}",
+        packet->get_data_size(), packet->get_egress_port());
 #endif  
-        if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
-            if (p4_switch_ID == 1){
-                int priority = -1;
-                PHV* phv = packet->get_phv();
-                if (phv->has_field("standard_metadata.priority")) {
-                    priority = phv->get_field("standard_metadata.priority").get_int();
-                }
 
-                int64_t src_pkt_id = -1;
-                if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
-                    src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
-                } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
-                    src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
-                } else {
-                    std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
-                }
+    m_re_pktID++;  // the packet number should be
 
-                ts_res times = get_ts();
-                std::string filename = "./scratch-data/p4-codel/emu_delay_out_switch.csv";
-                std::ofstream emu_delay_file(filename, std::ios::app);
-                if (emu_delay_file.is_open()) {
-                    emu_delay_file <<"EmuOut," << src_pkt_id << "," << 
-                        priority << "," << times.count()<< std::endl;
-                }
-                emu_delay_file.close();
+    PHV* phv = packet->get_phv();
+    
+    // ==================Take info from the p4 bm::packet==================
+    uint16_t protocol;
+    if (phv->has_field(P4GlobalVar::ns3i_protocol_1)) {
+        protocol = phv->get_field(P4GlobalVar::ns3i_protocol_1).get_int();
+    } else if (phv->has_field(P4GlobalVar::ns3i_protocol_2)) {
+        protocol = phv->get_field(P4GlobalVar::ns3i_protocol_2).get_int();
+    } else {
+        std::cout << "No protocol for sending ns-3 packet!" << std::endl;
+        protocol = 0;
+    }
+    
+    int des_idx = 0;
+    if (phv->has_field(P4GlobalVar::ns3i_destination_1)) {
+        des_idx = phv->get_field(P4GlobalVar::ns3i_destination_1).get_int();
+    } else if (phv->has_field(P4GlobalVar::ns3i_destination_2)) {
+        des_idx = phv->get_field(P4GlobalVar::ns3i_destination_2).get_int();
+    } else {
+        std::cout << "No destnation for sending ns-3 packet!" << std::endl;
+        des_idx = 0;
+    }
+        
+    int port = 0;
+    // take the port info into p4, here the port using egress_port
+    if (phv->has_field("standard_metadata.egress_port")) {
+        port = phv->get_field("standard_metadata.egress_port").get_int();
+    }
+
+    // tranfer bm::packet to ns3::packet
+    void *bm2Buffer = packet.get()->data();
+    size_t bm2Length = packet.get()->get_data_size();
+    ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
+
+    Ptr<ns3::Packet> packetOut(&ns3Packet);
+
+    m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
+
+    // ==============================tracing work=======================================
+    if (P4GlobalVar::ns3_p4_tracing_dalay_emu){
+        if (p4_switch_ID == 1){
+            int priority = -1;
+            PHV* phv = packet->get_phv();
+            if (phv->has_field("standard_metadata.priority")) {
+                priority = phv->get_field("standard_metadata.priority").get_int();
             }
+
+            int64_t src_pkt_id = -1;
+            if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+            } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+            } else {
+                std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+            }
+
+            ts_res times = get_ts();
+            std::string filename = "./scratch-data/p4-codel/emu_delay_out_switch.csv";
+            std::ofstream emu_delay_file(filename, std::ios::app);
+            if (emu_delay_file.is_open()) {
+                emu_delay_file <<"EmuOut," << src_pkt_id << "," << 
+                    priority << "," << times.count()<< std::endl;
+            }
+            emu_delay_file.close();
         }
-
-        /*
-        // default transmit function
-        my_transmit_fn(packet->get_egress_port(), packet->get_packet_id(),
-            packet->data(), packet->get_data_size());*/
-
-        // get the protocol and desination Address for ns-3 @mingyu
-        m_pkt_queue_mutex.lock();
-        bm_queue.push(std::move(packet));
-        m_pkt_queue_mutex.unlock();
     }
 }
 
@@ -1312,239 +1341,11 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     return -1;
 }
 
-void P4Model::SendNs3PktsWithCheckP4(std::string proto1, std::string proto2,
-		std::string dest1, std::string dest2)
-{
-    // this will be called by users hand
-    while(!re_bm_queue.empty()) {
-        std::unique_ptr<bm::Packet> bmpkt;
-        bmpkt = std::move(re_bm_queue.front());  // unique ptr move
-        re_bm_queue.pop();
+void
+P4Model::RunTransmitTimerEvent ()
+{       
+    this->transmit_thread();
 
-        m_re_pktID++;  // the packet number should be
-
-        PHV* phv = bmpkt->get_phv();
-        
-        // ==================Take info from the p4 bm::packet==================
-        
-        uint16_t protocol;
-        if (phv->has_field(proto1)) {
-            protocol = phv->get_field(proto1).get_int();
-        } else if (phv->has_field(proto2)) {
-            protocol = phv->get_field(proto2).get_int();
-        } else {
-            std::cout << "No protocol for sending ns-3 packet!" << std::endl;
-            protocol = 0;
-        }
-        
-        int des_idx = 0;
-        if (phv->has_field(dest1)) {
-            des_idx = phv->get_field(dest1).get_int();
-        } else if (phv->has_field(dest2)) {
-            des_idx = phv->get_field(dest2).get_int();
-        } else {
-            std::cout << "No destnation for sending ns-3 packet!" << std::endl;
-            des_idx = 0;
-        }
-            
-        int port = 0;
-        // take the port info into p4, here the port using egress_port
-        if (phv->has_field("standard_metadata.egress_port")) {
-            port = phv->get_field("standard_metadata.egress_port").get_int();
-        }
-
-        // tranfer bm::packet to ns3::packet
-        void *bm2Buffer = bmpkt.get()->data();
-        size_t bm2Length = bmpkt.get()->get_data_size();
-        ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
- 
-        // ======================= P4GlobalVar::ns3_p4_tracing_dalay_sim ===================== 
-        int64_t src_pkt_id = 0;
-        if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
-            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
-        } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
-            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
-        } else {
-            std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
-        }
-
-        if (P4GlobalVar::ns3_p4_tracing_dalay_sim){    
-            // add the ByteTag of the ns3::packet (for tracing delay etc)
-            m_tag_queue_mutex.lock();
-            
-            if (tag_map.find(src_pkt_id) != tag_map.end()) {
-                DelayJitterEstimationTimestampTag rdjtag = tag_map.find(src_pkt_id)->second;
-                ns3Packet.AddByteTag(rdjtag);
-                tag_map.erase (src_pkt_id); // Clear the item to avoid excessive map
-                std::cout << "Tag get!" << src_pkt_id << std::endl;
-            }
-            else {
-                std::cout << "No tag for sending out with id:" << src_pkt_id << std::endl;
-            }
-            m_tag_queue_mutex.unlock();
-        }
-        
-        Ptr<ns3::Packet> packetOut(&ns3Packet);
-        if (port != 511) {
-            tracing_total_out_pkts++;
-        } 
-        else {
-            tracing_port_drop++;
-        }
-        m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
-        
-        // ======================= P4GlobalVar::ns3_p4_tracing_drop ===================== 
-        
-
-        if (P4GlobalVar::ns3_p4_tracing_drop) {
-            if (drop_tracer.one_loop_num < 100){
-                // one hundred pkts write once.
-                drop_tracer.one_loop_num++;
-            }
-            else{
-                drop_tracer.one_loop_num = 0;
-                if (p4_switch_ID == 1) {
-                    std::string filename = "./scratch-data/p4-codel/drop_tracing_1.csv";
-                    std::ofstream dropFile(filename, std::ios::app);
-                    if (dropFile.is_open()) {
-                        dropFile <<
-                        drop_tracer.receive_num_0  << "," << drop_tracer.send_num_0 << "," <<
-                        drop_tracer.receive_num_3  << "," << drop_tracer.send_num_3 << "," <<
-                        drop_tracer.receive_num_7  << "," << drop_tracer.send_num_7 << "," <<
-                        Simulator::Now () << std::endl;
-                    }
-                    dropFile.close();
-                }
-                if (p4_switch_ID == 2) {
-                    std::string filename = "./scratch-data/p4-codel/drop_tracing_2.csv";
-                    std::ofstream dropFile(filename, std::ios::app);
-                    if (dropFile.is_open()) {
-                        dropFile <<
-                        drop_tracer.receive_num_0  << "," << drop_tracer.send_num_0 << "," <<
-                        drop_tracer.receive_num_3  << "," << drop_tracer.send_num_3 << "," <<
-                        drop_tracer.receive_num_7  << "," << drop_tracer.send_num_7 << "," <<
-                        Simulator::Now () << std::endl;
-                    }
-                    dropFile.close();
-                }
-            }
-        }// P4GlobalVar::ns3_p4_tracing_drop
-
-        // ======================= P4GlobalVar::ns3_p4_tracing_control
-        int priority = -1;
-        if (phv->has_field("standard_metadata.priority")) {
-            priority = phv->get_field("standard_metadata.priority").get_int();  
-        }
-        switch (priority)
-        {
-            case 0:{
-                drop_tracer.receive_num_0++; // increase one, record the total number receive
-                break;
-            }
-            case 3:{
-                drop_tracer.receive_num_3++;
-                break;
-            }
-            case 7:{
-                drop_tracer.receive_num_7++;
-                break;
-            } 
-            default:{
-            }
-        }
-
-        if (P4GlobalVar::ns3_p4_tracing_control){
-            if (tracing_control_loop_num < 100){
-                tracing_control_loop_num++;
-            }
-            else{
-                tracing_control_loop_num = 0;
-                // one hundred pkts write once.
-                if (p4_switch_ID == 1) {
-                    std::string filename = "./scratch-data/p4-codel/control_tracing_1.csv";
-                    std::ofstream dropFile(filename, std::ios::app);
-                    if (dropFile.is_open()) {
-                        dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
-                        tracing_ingress_total_pkts << "," << tracing_ingress_drop << "," <<
-                        tracing_egress_total_pkts << "," << tracing_egress_drop << "," <<
-                        tracing_recirculation_pkts << "," << tracing_port_drop << "," <<
-                        Simulator::Now () << std::endl;
-                    }
-                    dropFile.close();
-                }
-                if (p4_switch_ID == 2) {
-                    std::string filename = "./scratch-data/p4-codel/control_tracing_2.csv";
-                    std::ofstream dropFile(filename, std::ios::app);
-                    if (dropFile.is_open()) {
-                        dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
-                        tracing_ingress_total_pkts << "," <<tracing_ingress_drop << "," <<
-                        tracing_egress_total_pkts << "," <<tracing_egress_drop << "," <<
-                        tracing_recirculation_pkts << "," <<
-                        Simulator::Now () << std::endl;
-                    }
-                    dropFile.close();
-                }
-            }
-        }// P4GlobalVar::ns3_p4_tracing_control
-    }
-}
-
-int P4Model::ReceivePacketOld(Ptr<ns3::Packet> packetIn, int inPort,
-    		uint16_t protocol, Address const& destination)
-{
-    // **************Change ns3::Packet to bm::Packet***************************
-	int ns3Length = packetIn->GetSize();
-	uint8_t* ns3Buffer = new uint8_t[ns3Length];
-	packetIn->CopyData(ns3Buffer,ns3Length);
-	std::unique_ptr<bm::Packet> packet = new_packet_ptr(inPort, m_pktID++,
-		ns3Length, bm::PacketBuffer(2048, (char*)ns3Buffer, ns3Length));
-	delete[] ns3Buffer;
-	// *************************************************************************
-	if (packet) {
-
-		int len = packet.get()->get_data_size();
-		packet.get()->set_ingress_port(inPort);
-		bm::PHV *phv = packet.get()->get_phv();
-		phv->reset_metadata();
-		phv->get_field("standard_metadata.ingress_port").set(inPort);
-		phv->get_field("standard_metadata.packet_length").set(len);
-
-		if (phv->has_field("intrinsic_metadata.ingress_global_timestamp")) {
-			phv->get_field("intrinsic_metadata.ingress_global_timestamp").set(0);
-		}
-
-		// Ingress
-		bm::Parser *parser = this->get_parser("parser");
-		bm::Pipeline *ingressMau = this->get_pipeline("ingress");
-		phv = packet.get()->get_phv();
-
-		parser->parse(packet.get());
-
-		ingressMau->apply(packet.get());
-
-		packet->reset_exit();
-
-		bm::Field &fEgressSpec = phv->get_field("standard_metadata.egress_spec");
-		int egressPort = fEgressSpec.get_int();
-
-		// Egress
-		bm::Deparser *deparser = this->get_deparser("deparser");
-		bm::Pipeline *egressMau = this->get_pipeline("egress");
-		fEgressSpec = phv->get_field("standard_metadata.egress_spec");
-		fEgressSpec.set(0);
-		egressMau->apply(packet.get());
-		deparser->deparse(packet.get());
-
-		// *************************Change bm::Packet to ns3::Packet***********************
-		void *bm2Buffer = packet.get()->data();
-		size_t bm2Length = packet.get()->get_data_size();
-		ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
-		Ptr<ns3::Packet> packetOut(&ns3Packet);
-		// ********************************************************************************
-
-		m_pNetDevice->SendNs3Packet(packetOut, egressPort, protocol, destination);
-
-		return 0;
-	}
-	return -1;
+    // Reschedule timer event
+    m_transmitTimerEvent = Simulator::Schedule (m_transmitTimeReference, &P4Model::RunTransmitTimerEvent, this);
 }
