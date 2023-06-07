@@ -496,14 +496,14 @@ void P4Model::start_and_return_()
 
     // ingress thread
     threads_.push_back(std::thread(&P4Model::ingress_thread, this));
-    
+
     // egress threads
     for (size_t i = 0; i < nb_egress_threads; i++) {
         threads_.push_back(std::thread(&P4Model::egress_thread, this, i));
     }
 
     // start the transmit local thread
-    if (!m_egressTimeReference.IsZero())
+    if (!m_transmitTimeReference.IsZero())
     {
         // NS_LOG_INFO ("Scheduling initial timer event using m_egressTimeReference = " << m_egressTimeReference.GetNanoSeconds() << " ns");
         m_transmitTimerEvent = Simulator::Schedule (m_transmitTimeReference, &P4Model::RunTransmitTimerEvent, this);
