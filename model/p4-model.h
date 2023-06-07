@@ -129,7 +129,6 @@ class P4Model : public Switch {
 		int64_t tracing_port_drop;
 		int64_t tracing_total_in_pkts;
 		int64_t tracing_total_out_pkts;
-		int64_t tracing_recirculation_pkts;
 
 		std::map<int64_t, DelayJitterEstimationTimestampTag> tag_map;
 		
@@ -220,7 +219,7 @@ class P4Model : public Switch {
 		int InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetParserBasic *tp = nullptr);
 	
 	private:
-		static constexpr size_t nb_egress_threads = 4u; // 4u default in bmv2, but in ns-3 make sure safe
+		static constexpr size_t nb_egress_threads = 8u; // 4u default in bmv2, but in ns-3 make sure safe
 		static packet_id_t packet_id;
 
 		class MirroringSessions;

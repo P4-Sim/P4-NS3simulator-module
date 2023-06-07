@@ -217,6 +217,10 @@ public:
         }
     }
 
+    int get_size() {
+        return static_cast<int>(queue_hi.size() + queue_lo.size());
+    }
+
 private:
     using Mutex = std::mutex;
     using Lock = std::unique_lock<Mutex>;
@@ -247,31 +251,6 @@ private:
     QueueImpl queue_hi;
     QueueImpl queue_lo;
 };
-
-/*
-P4Model::P4Model(P4NetDevice* netDevice) :
-        m_pre(new bm::McSimplePre()) {
-        //! A simple, 2-level, packet replication engine, configurable by the control
-        //! plane. See replicate() for more information.
-        m_pNetDevice = netDevice;
-
-        add_component<bm::McSimplePre>(m_pre);
-
-        m_argParser = new bm::TargetParserBasic();
-        add_required_field("standard_metadata", "ingress_port");	// sm14, v1m
-        add_required_field("standard_metadata", "packet_length");	// sm14, v1m
-        add_required_field("standard_metadata", "instance_type");	// sm14, v1m
-        add_required_field("standard_metadata", "egress_spec");		// sm14, v1m
-        add_required_field("standard_metadata", "egress_port");		// sm14, v1m
-        //add_required_field("standard_metadata", "egress_instance"); // sm14
-        //add_required_field("standard_metadata", "checksum_error"); 	// v1m
-
-    force_arith_header("standard_metadata");
-    force_arith_header("queueing_metadata");
-    force_arith_header("intrinsic_metadata");
-
-        import_primitives();
-}*/
 
 P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     port_t drop_port, size_t nb_queues_per_port)
@@ -321,7 +300,7 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     // event for threads local
     m_transmitTimerEvent = EventId(); // default initial value
     // default time setting for event loop.
-    m_transmitTimeReference = Time("10us");
+    m_transmitTimeReference = Time("1us");
 
     drop_tracer.send_num_7 = 0;
     drop_tracer.send_num_3 = 0;
@@ -340,7 +319,6 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     tracing_port_drop = 0;
     tracing_total_in_pkts = 0;
     tracing_total_out_pkts = 0;
-    tracing_recirculation_pkts= 0;
 }
 
 int P4Model::init(int argc, char* argv[])
@@ -813,6 +791,11 @@ void P4Model::ingress_thread()
         if (packet == nullptr)
             break;
         
+        // ingress buffer bloat waring
+        if (input_buffer->get_size() > 100) {
+            std::cout << "warning buffer bloat in Ingress Thread!" << std::endl;
+        }
+
         tracing_ingress_total_pkts++;
 
         // TODO(antonin): only update these if swapping actually happened?
@@ -858,39 +841,39 @@ void P4Model::ingress_thread()
         to using priority_id for trace drop. But also should before the 
         ingress and egress Enqueue, which will drop by the priority.
         @mingyu*/
-        int priority = -1;
-        if (phv->has_field("standard_metadata.priority")) {
-            priority = phv->get_field("standard_metadata.priority").get_int();
-        }
-        m_drop_queue_mutex.lock();
-        int64_t temp_drop_tracer_value = 0;
-        switch (priority) {
-            case 0: {
-                // No need for mutex lock, only one ingress thread do operation
-                temp_drop_tracer_value = drop_tracer.send_num_0++;
-                break;
-            }
-            case 3: {
-                temp_drop_tracer_value = drop_tracer.send_num_3++;
-                break;
-            }
-            case 7: {
-                temp_drop_tracer_value = drop_tracer.send_num_7++;
-                break;
-            }
-            default: {
-            }
-        }
-        if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
-            phv->get_field(P4GlobalVar::ns3i_priority_id_1)
-                .set(temp_drop_tracer_value);
-        } else if (phv->has_field(P4GlobalVar::ns3i_priority_id_2)) {
-            phv->get_field(P4GlobalVar::ns3i_priority_id_2)
-                .set(temp_drop_tracer_value);
-        } else {
-            std::cout << "temp_drop_tracer_value set failed." << std::endl;
-        }
-        m_drop_queue_mutex.unlock();
+        // int priority = -1;
+        // if (phv->has_field("standard_metadata.priority")) {
+        //     priority = phv->get_field("standard_metadata.priority").get_int();
+        // }
+        // m_drop_queue_mutex.lock();
+        // int64_t temp_drop_tracer_value = 0;
+        // switch (priority) {
+        //     case 0: {
+        //         // No need for mutex lock, only one ingress thread do operation
+        //         temp_drop_tracer_value = drop_tracer.send_num_0++;
+        //         break;
+        //     }
+        //     case 3: {
+        //         temp_drop_tracer_value = drop_tracer.send_num_3++;
+        //         break;
+        //     }
+        //     case 7: {
+        //         temp_drop_tracer_value = drop_tracer.send_num_7++;
+        //         break;
+        //     }
+        //     default: {
+        //     }
+        // }
+        // if (phv->has_field(P4GlobalVar::ns3i_priority_id_1)) {
+        //     phv->get_field(P4GlobalVar::ns3i_priority_id_1)
+        //         .set(temp_drop_tracer_value);
+        // } else if (phv->has_field(P4GlobalVar::ns3i_priority_id_2)) {
+        //     phv->get_field(P4GlobalVar::ns3i_priority_id_2)
+        //         .set(temp_drop_tracer_value);
+        // } else {
+        //     std::cout << "temp_drop_tracer_value set failed." << std::endl;
+        // }
+        // m_drop_queue_mutex.unlock();
 
         Field& f_egress_spec = phv->get_field("standard_metadata.egress_spec");
         port_t egress_spec = f_egress_spec.get_uint();
@@ -1088,41 +1071,41 @@ void P4Model::egress_thread(size_t worker_id)
         egress_mau->apply(packet.get());
 
         // @mingyu
-        if (p4_switch_ID == 1) {
-            // std::cout << "port:" << port << " priority:" << priority << std::endl;
-            int queue_id = -1;
-            if (phv->has_field("scalars.userMetadata._codel_queue_id13")) {
-                queue_id = phv->get_field("scalars.userMetadata._codel_queue_id13").get_int();
-            }
-            int current_queue_threshold_max = -1;
-            if (phv->has_field("scalars.current_queue_threshold_max_0")) {
-                current_queue_threshold_max = phv->get_field("scalars.current_queue_threshold_max_0").get_int();
-            }
-            int current_queue_threshold_min = -1;
-            if (phv->has_field("scalars.current_queue_threshold_min_0")) {
-                current_queue_threshold_min = phv->get_field("scalars.current_queue_threshold_min_0").get_int();
-            }
-            int deq_queue_length = -1;
-            if (phv->has_field("queueing_metadata.deq_qdepth")) {
-                deq_queue_length = phv->get_field("queueing_metadata.deq_qdepth").get_int();
-            }
-            int enq_queue_length = -1;
-            if (phv->has_field("queueing_metadata.enq_qdepth")) {
-                enq_queue_length = phv->get_field("queueing_metadata.enq_qdepth").get_int();
-            }
+        // if (p4_switch_ID == 1) {
+        //     // std::cout << "port:" << port << " priority:" << priority << std::endl;
+        //     int queue_id = -1;
+        //     if (phv->has_field("scalars.userMetadata._codel_queue_id13")) {
+        //         queue_id = phv->get_field("scalars.userMetadata._codel_queue_id13").get_int();
+        //     }
+        //     int current_queue_threshold_max = -1;
+        //     if (phv->has_field("scalars.current_queue_threshold_max_0")) {
+        //         current_queue_threshold_max = phv->get_field("scalars.current_queue_threshold_max_0").get_int();
+        //     }
+        //     int current_queue_threshold_min = -1;
+        //     if (phv->has_field("scalars.current_queue_threshold_min_0")) {
+        //         current_queue_threshold_min = phv->get_field("scalars.current_queue_threshold_min_0").get_int();
+        //     }
+        //     int deq_queue_length = -1;
+        //     if (phv->has_field("queueing_metadata.deq_qdepth")) {
+        //         deq_queue_length = phv->get_field("queueing_metadata.deq_qdepth").get_int();
+        //     }
+        //     int enq_queue_length = -1;
+        //     if (phv->has_field("queueing_metadata.enq_qdepth")) {
+        //         enq_queue_length = phv->get_field("queueing_metadata.enq_qdepth").get_int();
+        //     }
 
-            std::string filename = "./scratch-data/p4-codel/egress_queue_state.csv";
-            std::ofstream dropFile(filename, std::ios::app);
-            if (dropFile.is_open()) {
-                dropFile << 
-                queue_id << "," <<
-                current_queue_threshold_min << "," <<
-                enq_queue_length << "," <<
-                deq_queue_length << "," <<
-                current_queue_threshold_max << std::endl;
-            }
-            dropFile.close();
-        }
+        //     std::string filename = "./scratch-data/p4-codel/egress_queue_state.csv";
+        //     std::ofstream dropFile(filename, std::ios::app);
+        //     if (dropFile.is_open()) {
+        //         dropFile << 
+        //         queue_id << "," <<
+        //         current_queue_threshold_min << "," <<
+        //         enq_queue_length << "," <<
+        //         deq_queue_length << "," <<
+        //         current_queue_threshold_max << std::endl;
+        //     }
+        //     dropFile.close();
+        // }
 
 
         auto clone_mirror_session_id = RegisterAccess::get_clone_mirror_session_id(packet.get());
@@ -1186,9 +1169,7 @@ void P4Model::egress_thread(size_t worker_id)
         if (recirculate_flag) {
 #ifdef BMNANOMSG_ON
             BMLOG_DEBUG_PKT(*packet, "Recirculating packet");
-#endif         
-            tracing_recirculation_pkts++;
-
+#endif
             p4object_id_t field_list_id = recirculate_flag;
             RegisterAccess::set_recirculate_flag(packet.get(), 0);
             FieldList* field_list = this->get_field_list(field_list_id);
