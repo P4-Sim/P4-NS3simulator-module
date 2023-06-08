@@ -109,16 +109,7 @@ class P4Model : public Switch {
 		int address_num;											//!< index of address.
 		int p4_switch_ID;											//!< the total drop packages number
 
-		struct DropTracing {
-			int64_t send_num_7;
-			int64_t send_num_3;
-			int64_t send_num_0;
-			int64_t receive_num_7;
-			int64_t receive_num_3;
-			int64_t receive_num_0;
-			int one_loop_num;
-		} drop_tracer;
-		mutable std::mutex m_drop_queue_mutex;
+		
 
 		// tracing with simple number count
 		int tracing_control_loop_num;
@@ -126,17 +117,21 @@ class P4Model : public Switch {
 		int64_t tracing_ingress_drop;
 		int64_t tracing_egress_total_pkts;
 		int64_t tracing_egress_drop;
-		int64_t tracing_port_drop;
 		int64_t tracing_total_in_pkts;
 		int64_t tracing_total_out_pkts;
 
 		std::map<int64_t, DelayJitterEstimationTimestampTag> tag_map;
 		
+		
 		// time event for thread local
 		EventId m_transmitTimerEvent;              					//!< The timer event ID [Transfer]
 		Time m_transmitTimeReference;
-
+		
+		mutable std::mutex m_drop_queue_mutex;
+		mutable std::mutex m_pkt_queue_mutex;
 		mutable std::mutex m_tag_queue_mutex;
+		std::queue<std::unique_ptr<bm::Packet>> bm_queue;			//!< SYNC infomation Queue
+		std::queue<std::unique_ptr<bm::Packet>> re_bm_queue;		//!< re_bm_queue for saving pkts from bm_queue
 
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
@@ -219,7 +214,7 @@ class P4Model : public Switch {
 		int InitFromCommandLineOptionsLocal(int argc, char *argv[], bm::TargetParserBasic *tp = nullptr);
 	
 	private:
-		static constexpr size_t nb_egress_threads = 8u; // 4u default in bmv2, but in ns-3 make sure safe
+		static constexpr size_t nb_egress_threads = 4u; // 4u default in bmv2, but in ns-3 make sure safe
 		static packet_id_t packet_id;
 
 		class MirroringSessions;
@@ -251,8 +246,11 @@ class P4Model : public Switch {
 		void ingress_thread();
 		void egress_thread(size_t worker_id);
 		void transmit_thread();
-
+		
+		void ingress_pipeline(std::unique_ptr<bm::Packet> packet);
+		void RunIngressTimerEvent ();
 		void RunTransmitTimerEvent();
+		void SendNs3PktsWithCheckP4();
 
 		ts_res get_ts() const;
 
