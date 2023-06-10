@@ -310,6 +310,9 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     tracing_egress_drop = 0;
     tracing_total_in_pkts = 0;
     tracing_total_out_pkts = 0;
+
+    m_tracingPacketsEvent = EventId(); // default initial value
+    Simulator::ScheduleNow (&P4Model::TracingPacketsEvent, this);
 }
 
 int P4Model::init(int argc, char* argv[])
@@ -1216,8 +1219,8 @@ void P4Model::egress_thread(size_t worker_id)
 
         egress_mau->apply(packet.get());
 
-        if (p4_switch_ID == 1) {
-            // std::cout << "port:" << port << " priority:" << priority << std::endl;
+        if ((p4_switch_ID == 1) && (port == 3)) {
+            // @mingyu tracing the port 3 (current port 3 send all the packets out.)
             int queue_id = -1;
             if (phv->has_field("scalars.userMetadata._codel_queue_id13")) {
                 queue_id = phv->get_field("scalars.userMetadata._codel_queue_id13").get_int();
@@ -1234,6 +1237,7 @@ void P4Model::egress_thread(size_t worker_id)
             if (phv->has_field("queueing_metadata.deq_qdepth")) {
                 deq_queue_length = phv->get_field("queueing_metadata.deq_qdepth").get_int();
             }
+            // int current_deq_queue_length = 
             int enq_queue_length = -1;
             if (phv->has_field("queueing_metadata.enq_qdepth")) {
                 enq_queue_length = phv->get_field("queueing_metadata.enq_qdepth").get_int();
@@ -1591,6 +1595,7 @@ P4Model::SendNs3PktsWithCheckP4()
                         tracing_ingress_drop << "," <<
                         tracing_egress_total_pkts << "," << 
                         tracing_egress_drop << "," <<
+                        m_re_pktID << "," <<
                         Simulator::Now () << "," <<
                         times.count() <<std::endl;
                     }
@@ -1611,4 +1616,25 @@ P4Model::SendNs3PktsWithCheckP4()
         // drop_egress_file.close();
 
     }   
+}
+
+
+void
+P4Model::TracingPacketsEvent ()
+{   
+    // tracing the packets in p4-switch
+
+    std::string filename = "./scratch-data/p4-codel/p4_switch_pkts_path.csv";
+    std::ofstream file(filename, std::ios::app);
+    if (file.is_open()) {
+        file << tracing_ingress_total_pkts << "," <<
+                tracing_egress_total_pkts << "," <<
+                tracing_total_in_pkts << "," <<
+                tracing_total_out_pkts << "," <<
+                Simulator::Now () << std::endl;
+    }
+    file.close();
+
+    // Reschedule timer event
+    m_tracingPacketsEvent = Simulator::Schedule (Time("0.5s"), &P4Model::TracingPacketsEvent, this);
 }

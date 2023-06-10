@@ -125,6 +125,7 @@ class P4Model : public Switch {
 		
 		// time event for thread local
 		EventId m_transmitTimerEvent;              					//!< The timer event ID [Transfer]
+		EventId m_tracingPacketsEvent;
 		Time m_transmitTimeReference;
 		
 		mutable std::mutex m_drop_queue_mutex;
@@ -249,6 +250,7 @@ class P4Model : public Switch {
 		
 		void ingress_pipeline(std::unique_ptr<bm::Packet> packet);
 		void RunIngressTimerEvent ();
+		void TracingPacketsEvent ();
 		void RunTransmitTimerEvent();
 		void SendNs3PktsWithCheckP4();
 
