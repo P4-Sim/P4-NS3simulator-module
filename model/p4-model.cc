@@ -1622,19 +1622,21 @@ P4Model::SendNs3PktsWithCheckP4()
 void
 P4Model::TracingPacketsEvent ()
 {   
-    // tracing the packets in p4-switch
+    // tracing the packets in p4-switch s1
+    if (p4_switch_ID == 1) {
+        std::string filename = "./scratch-data/p4-codel/p4_switch_pkts_path.csv";
+        std::ofstream file(filename, std::ios::app);
+        if (file.is_open()) {
+            file << tracing_ingress_total_pkts << "," <<
+                    tracing_egress_total_pkts << "," <<
+                    tracing_total_in_pkts << "," <<
+                    tracing_total_out_pkts << "," <<
+                    Simulator::Now () << "," <<
+                    get_ts().count() << std::endl;
+        }
+        file.close();
 
-    std::string filename = "./scratch-data/p4-codel/p4_switch_pkts_path.csv";
-    std::ofstream file(filename, std::ios::app);
-    if (file.is_open()) {
-        file << tracing_ingress_total_pkts << "," <<
-                tracing_egress_total_pkts << "," <<
-                tracing_total_in_pkts << "," <<
-                tracing_total_out_pkts << "," <<
-                Simulator::Now () << std::endl;
-    }
-    file.close();
-
-    // Reschedule timer event
-    m_tracingPacketsEvent = Simulator::Schedule (Time("0.5s"), &P4Model::TracingPacketsEvent, this);
+        // Reschedule timer event
+        m_tracingPacketsEvent = Simulator::Schedule (Time("0.5s"), &P4Model::TracingPacketsEvent, this);
+    }   
 }
