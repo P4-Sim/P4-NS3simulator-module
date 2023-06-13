@@ -299,7 +299,7 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     m_transmitTimerEvent = EventId(); // default initial value
     // default time setting for event loop.
     m_ingressTimeReference = Time("1ms");
-    m_egressTimeReference = Time("1ms");
+    m_egressTimeReference = Time("10us");
     m_transmitTimeReference = Time("500us");
 
     // ns3 settings init @mingyu

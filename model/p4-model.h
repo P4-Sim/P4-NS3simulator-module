@@ -181,9 +181,11 @@ class NSQueueingLogicPriRL {
     size_t pri;
     while (true) {
       if (w_info.size == 0) {
-		// ns3::Simulator::Schedule
-        w_info.q_not_empty.wait(lock);
+		// w_info.q_not_empty.wait(lock); 空队列，等到锁状态变化(加入pkts)
+		// 将会取出空值，但是检测步骤交给后续处理
+        return;
       } else {
+		// 队列中有pkt
         Time now = Simulator::Now();
         Time next = now + Seconds (10); // set 10s as the max interval for one packet process.
         for (pri = 0; pri < nb_priorities; pri++) {
@@ -196,7 +198,9 @@ class NSQueueingLogicPriRL {
           next = (next < q.top().send) ? next : q.top().send;
         }
         if (queue) break;
-        w_info.q_not_empty.wait_until(lock, next);
+		// 此时队列又为空队列，等待锁状态变化(加入pkts)
+		// 将会取出空值，但是检测步骤交给后续处理
+        return;
       }
     }
     *queue_id = queue->top().queue_id;
