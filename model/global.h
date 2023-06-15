@@ -90,7 +90,6 @@ public:
 
 	// tracing info
 	static bool ns3_p4_tracing_dalay_sim; // Byte Tag
-	static bool ns3_p4_tracing_dalay_emu; // system time 
 	static bool ns3_p4_tracing_control; // how the switch control the pkts
 	static bool ns3_p4_tracing_drop; // the pkts drop in and out switch
 
