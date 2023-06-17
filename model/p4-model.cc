@@ -298,15 +298,24 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     m_egressTimerEvent = EventId(); // default initial value
     m_transmitTimerEvent = EventId(); // default initial value
     // default time setting for event loop.
-    m_ingressTimeReference = Time("100us");
-    m_egressTimeReference = Time("100us");
-    m_transmitTimeReference = Time("100us");
+    m_ingressTimeReference = Time("1ms");
+    m_egressTimeReference = Time("1ms");
+    m_transmitTimeReference = Time("1ms");
 
     // ns3 settings init @mingyu
     address_num = 0;
 
     static int switch_id = 1;
     p4_switch_ID = switch_id++;
+
+    // tracing control with simple number count
+    tracing_control_loop_num = 0;
+    tracing_ingress_total_pkts = 0;
+    tracing_ingress_drop = 0;
+    tracing_egress_total_pkts = 0;
+    tracing_egress_drop = 0;
+    tracing_total_in_pkts = 0;
+    tracing_total_out_pkts = 0;
 }
 
 int P4Model::init(int argc, char* argv[])
@@ -633,8 +642,32 @@ void P4Model::transmit_thread()
     size_t bm2Length = packet.get()->get_data_size();
     ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
 
+    if (P4GlobalVar::ns3_p4_tracing_dalay_ByteTag){
+        // add the ByteTag of the ns3::packet (for tracing delay etc)
+        int64_t src_pkt_id = -1;
+        if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+        } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+            src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+        } else {
+            std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+        }
+        m_tag_queue_mutex.lock();
+        
+        if (tag_map.find(src_pkt_id) != tag_map.end()) {
+            DelayJitterEstimationTimestampTag rdjtag = tag_map.find(src_pkt_id)->second;
+            ns3Packet.AddByteTag(rdjtag);
+            tag_map.erase (src_pkt_id); // Clear the item to avoid excessive map
+        }
+        // else {
+        //     std::cout << p4_switch_ID <<" No tag for sending out with id:" << src_pkt_id << std::endl;
+        // }
+        m_tag_queue_mutex.unlock();
+    }
+
     Ptr<ns3::Packet> packetOut(&ns3Packet);
 
+    tracing_total_out_pkts++;
     m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
 
     if (P4GlobalVar::ns3_p4_tracing_dalay_sim){
@@ -654,7 +687,31 @@ void P4Model::transmit_thread()
                 std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
             }
 
-            std::string filename = "./scratch-data/p4-codel/sim_delay_out_switch.csv";
+            std::string filename = "./scratch-data/p4-codel/sim_delay_out_switch_1.csv";
+            std::ofstream sim_delay_file(filename, std::ios::app);
+            if (sim_delay_file.is_open()) {
+                sim_delay_file <<"SimOut," << src_pkt_id << "," << 
+                    priority << "," << Simulator::Now() << std::endl;
+            }
+            sim_delay_file.close();
+        }
+        if (p4_switch_ID == 2){
+            int priority = -1;
+            PHV* phv = packet->get_phv();
+            if (phv->has_field("standard_metadata.priority")) {
+                priority = phv->get_field("standard_metadata.priority").get_int();
+            }
+
+            int64_t src_pkt_id = -1;
+            if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+            } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+            } else {
+                std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+            }
+
+            std::string filename = "./scratch-data/p4-codel/sim_delay_out_switch_2.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
                 sim_delay_file <<"SimOut," << src_pkt_id << "," << 
@@ -663,6 +720,38 @@ void P4Model::transmit_thread()
             sim_delay_file.close();
         }
     }
+
+    if (P4GlobalVar::ns3_p4_tracing_control){
+        if (tracing_control_loop_num < 100){
+            tracing_control_loop_num++;
+        }
+        else{
+            tracing_control_loop_num = 0;
+            // one hundred pkts write once.
+            if (p4_switch_ID == 1) {
+                std::string filename = "./scratch-data/p4-codel/control_tracing_1.csv";
+                std::ofstream dropFile(filename, std::ios::app);
+                if (dropFile.is_open()) {
+                    dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
+                    tracing_ingress_total_pkts << "," << tracing_ingress_drop << "," <<
+                    tracing_egress_total_pkts << "," << tracing_egress_drop << "," <<
+                    Simulator::Now () << std::endl;
+                }
+                dropFile.close();
+            }
+            // if (p4_switch_ID == 2) {
+            //     std::string filename = "./scratch-data/p4-codel/control_tracing_2.csv";
+            //     std::ofstream dropFile(filename, std::ios::app);
+            //     if (dropFile.is_open()) {
+            //         dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
+            //         tracing_ingress_total_pkts << "," <<tracing_ingress_drop << "," <<
+            //         tracing_egress_total_pkts << "," <<tracing_egress_drop << "," <<
+            //         Simulator::Now () << std::endl;
+            //     }
+            //     dropFile.close();
+            // }
+        }
+    }// P4GlobalVar::ns3_p4_tracing_control
 }
 
 void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
@@ -699,7 +788,24 @@ void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
                 std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
             }
 
-            std::string filename = "./scratch-data/p4-codel/sim_in_queue.csv";
+            std::string filename = "./scratch-data/p4-codel/sim_in_queue_1.csv";
+            std::ofstream sim_delay_file(filename, std::ios::app);
+            if (sim_delay_file.is_open()) {
+                sim_delay_file <<"SimQIn," << src_pkt_id << "," << Simulator::Now()  << std::endl;
+            }
+            sim_delay_file.close();
+        }
+        if (p4_switch_ID == 2){ 
+            int64_t src_pkt_id = -1;
+            if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+            } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+            } else {
+                std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+            }
+
+            std::string filename = "./scratch-data/p4-codel/sim_in_queue_2.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
                 sim_delay_file <<"SimQIn," << src_pkt_id << "," << Simulator::Now()  << std::endl;
@@ -770,6 +876,8 @@ void P4Model::ingress_thread()
     if (packet == nullptr)
         return;
     
+    tracing_ingress_total_pkts++;
+
     // TODO(antonin): only update these if swapping actually happened?
     Parser* parser = this->get_parser("parser");
     Pipeline* ingress_mau = this->get_pipeline("ingress");
@@ -919,6 +1027,7 @@ void P4Model::ingress_thread()
     BMLOG_DEBUG_PKT(*packet, "Egress port is {}", egress_port);
 #endif
     if (egress_port == drop_port) { // drop packet
+        tracing_ingress_drop++;
 #ifdef BMNANOMSG_ON
         BMLOG_DEBUG_PKT(*packet, "Dropping packet at the end of ingress");
 #endif
@@ -953,6 +1062,8 @@ void P4Model::egress_thread(size_t worker_id)
     if (packet == nullptr)
         return;
 
+    tracing_egress_total_pkts++;
+
     Deparser* deparser = this->get_deparser("deparser");
     Pipeline* egress_mau = this->get_pipeline("egress");
 
@@ -975,7 +1086,31 @@ void P4Model::egress_thread(size_t worker_id)
                 std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
             }
 
-            std::string filename = "./scratch-data/p4-codel/sim_out_queue.csv";
+            std::string filename = "./scratch-data/p4-codel/sim_out_queue_1.csv";
+            std::ofstream sim_delay_file(filename, std::ios::app);
+            if (sim_delay_file.is_open()) {
+                sim_delay_file <<"SimQOut," << src_pkt_id << "," << 
+                    priority << "," << Simulator::Now() << std::endl;
+            }
+            sim_delay_file.close();
+        }
+        if (p4_switch_ID == 2){
+            int priority = -1;
+            PHV* phv = packet->get_phv();
+            if (phv->has_field("standard_metadata.priority")) {
+                priority = phv->get_field("standard_metadata.priority").get_int();
+            }
+
+            int64_t src_pkt_id = -1;
+            if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
+            } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
+                src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_2).get_uint64();
+            } else {
+                std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
+            }
+
+            std::string filename = "./scratch-data/p4-codel/sim_out_queue_2.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
                 sim_delay_file <<"SimQOut," << src_pkt_id << "," << 
@@ -1056,6 +1191,7 @@ void P4Model::egress_thread(size_t worker_id)
     // TODO(antonin): should not be done like this in egress pipeline
     port_t egress_spec = f_egress_spec.get_uint();
     if (egress_spec == drop_port) { // drop packet
+        tracing_egress_drop++;
 #ifdef BMNANOMSG_ON
         BMLOG_DEBUG_PKT(*packet, "Dropping packet at the end of egress");
 #endif
@@ -1105,6 +1241,16 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     uint8_t* ns3Buffer = new uint8_t[ns3Length];
     packetIn->CopyData(ns3Buffer, ns3Length);
 
+	if (P4GlobalVar::ns3_p4_tracing_dalay_ByteTag){
+        // parse the ByteTag in ns3::packet (for tracing delay etc)
+        DelayJitterEstimationTimestampTag djtag;
+        if (packetIn->FindFirstMatchingByteTag(djtag)) {
+            m_tag_queue_mutex.lock();
+            tag_map.insert (std::pair<int64_t, DelayJitterEstimationTimestampTag>(m_pktID, djtag));
+            m_tag_queue_mutex.unlock();
+        }
+    }
+    
     // we limit the packet buffer to original size + 512 bytes, which means we
     // cannot add more than 512 bytes of header data to the packet, which should
     // be more than enough
@@ -1116,6 +1262,9 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     BMELOG(packet_in, *packet);
 #endif
     if (packet) {
+
+        tracing_total_in_pkts++;
+
         PHV* phv = packet->get_phv();
 
         int len = packet.get()->get_data_size();
@@ -1193,7 +1342,15 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         
         if (P4GlobalVar::ns3_p4_tracing_dalay_sim){
             if (p4_switch_ID == 1){
-                std::string filename = "./scratch-data/p4-codel/sim_delay_in_switch.csv";
+                std::string filename = "./scratch-data/p4-codel/sim_delay_in_switch_1.csv";
+                std::ofstream sim_delay_file(filename, std::ios::app);
+                if (sim_delay_file.is_open()) {
+                    sim_delay_file <<"SimIn," << m_pktID-1 << "," << Simulator::Now()  << std::endl;
+                }
+                sim_delay_file.close();
+            }  
+            if (p4_switch_ID == 2){
+                std::string filename = "./scratch-data/p4-codel/sim_delay_in_switch_2.csv";
                 std::ofstream sim_delay_file(filename, std::ios::app);
                 if (sim_delay_file.is_open()) {
                     sim_delay_file <<"SimIn," << m_pktID-1 << "," << Simulator::Now()  << std::endl;

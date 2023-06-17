@@ -40,7 +40,8 @@ namespace ns3 {
   std::string P4GlobalVar::ns3i_pkts_id_2 = "scalars.userMetadata._ns3i_pkts_id18";
 
   // tracing info
-	bool P4GlobalVar::ns3_p4_tracing_dalay_sim = false; // Byte Tag
+	bool P4GlobalVar::ns3_p4_tracing_dalay_sim = false;
+  bool P4GlobalVar::ns3_p4_tracing_dalay_ByteTag = false; // Byte Tag
 	bool P4GlobalVar::ns3_p4_tracing_control = false; // how the switch control the pkts
 	bool P4GlobalVar::ns3_p4_tracing_drop = false; // the pkts drop in and out switch
 

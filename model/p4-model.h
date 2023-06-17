@@ -469,6 +469,17 @@ class P4Model : public Switch {
 		EventId m_transmitTimerEvent;              					//!< The timer event ID [Transfer]
 		Time m_transmitTimeReference;        	  					//!< Desired time between timer event triggers
 
+    mutable std::mutex m_tag_queue_mutex;
+
+    // tracing with simple number count
+		int tracing_control_loop_num;
+		int64_t tracing_ingress_total_pkts;
+		int64_t tracing_ingress_drop;
+		int64_t tracing_egress_total_pkts;
+		int64_t tracing_egress_drop;
+		int64_t tracing_total_in_pkts;
+		int64_t tracing_total_out_pkts;
+    
 		// with bmv2 simple-switch
 		using mirror_id_t = int;
 		using TransmitFn = std::function<void(port_t, packet_id_t,

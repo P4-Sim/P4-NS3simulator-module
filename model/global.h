@@ -89,7 +89,8 @@ public:
 	static std::string ns3i_pkts_id_2;
 
 	// tracing info
-	static bool ns3_p4_tracing_dalay_sim; // Byte Tag
+	static bool ns3_p4_tracing_dalay_sim;
+	static bool ns3_p4_tracing_dalay_ByteTag; // Byte Tag
 	static bool ns3_p4_tracing_control; // how the switch control the pkts
 	static bool ns3_p4_tracing_drop; // the pkts drop in and out switch
 
