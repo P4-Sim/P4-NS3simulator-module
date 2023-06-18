@@ -294,11 +294,9 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
 
     // event for threads local
     worker_id = 0;
-    m_ingressTimerEvent = EventId(); // default initial value
     m_egressTimerEvent = EventId(); // default initial value
     m_transmitTimerEvent = EventId(); // default initial value
     // default time setting for event loop.
-    m_ingressTimeReference = Time("1ms");
     m_egressTimeReference = Time("1ms");
     m_transmitTimeReference = Time("1ms");
 
@@ -476,12 +474,12 @@ void P4Model::start_and_return_()
 
     // threads_.push_back(std::thread(&P4Model::ingress_thread, this));
 
-    // start the ingress local thread
-    if (!m_ingressTimeReference.IsZero())
-    {
-        // NS_LOG_INFO ("Scheduling initial timer event using m_ingressTimeReference = " << m_ingressTimeReference.GetNanoSeconds() << " ns");
-        m_ingressTimerEvent = Simulator::Schedule (m_ingressTimeReference, &P4Model::RunIngressTimerEvent, this);
-    }
+    // // start the ingress local thread
+    // if (!m_ingressTimeReference.IsZero())
+    // {
+    //     // NS_LOG_INFO ("Scheduling initial timer event using m_ingressTimeReference = " << m_ingressTimeReference.GetNanoSeconds() << " ns");
+    //     m_ingressTimerEvent = Simulator::Schedule (m_ingressTimeReference, &P4Model::RunIngressTimerEvent, this);
+    // }
 
     // start the egress local thread
     if (!m_egressTimeReference.IsZero())
@@ -591,7 +589,6 @@ int P4Model::set_all_egress_queue_rates(const uint64_t rate_pps)
 
 void P4Model::transmit_thread()
 {   
-    
     std::unique_ptr<bm::Packet> packet;
 
     if (output_buffer.size() == 0) {
@@ -600,11 +597,6 @@ void P4Model::transmit_thread()
     output_buffer.pop_back(&packet);
     if (packet == nullptr)
         return;
-#ifdef BMNANOMSG_ON
-    BMELOG(packet_out, *packet);
-    BMLOG_DEBUG_PKT(*packet, "Transmitting packet of size {} out of port {}",
-        packet->get_data_size(), packet->get_egress_port());
-#endif  
 
     m_re_pktID++;  // the packet number should be
 
@@ -739,17 +731,6 @@ void P4Model::transmit_thread()
                 }
                 dropFile.close();
             }
-            // if (p4_switch_ID == 2) {
-            //     std::string filename = "./scratch-data/p4-codel/control_tracing_2.csv";
-            //     std::ofstream dropFile(filename, std::ios::app);
-            //     if (dropFile.is_open()) {
-            //         dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
-            //         tracing_ingress_total_pkts << "," <<tracing_ingress_drop << "," <<
-            //         tracing_egress_total_pkts << "," <<tracing_egress_drop << "," <<
-            //         Simulator::Now () << std::endl;
-            //     }
-            //     dropFile.close();
-            // }
         }
     }// P4GlobalVar::ns3_p4_tracing_control
 }
@@ -867,41 +848,19 @@ void P4Model::multicast(bm::Packet* packet, unsigned int mgid)
     }
 }
 
-void P4Model::ingress_thread()
+void P4Model::ingress_pipeline(std::unique_ptr<bm::Packet> packet)
 {
-    PHV* phv;
-    
-    std::unique_ptr<bm::Packet> packet;
-    input_buffer->pop_back(&packet);
-    if (packet == nullptr)
-        return;
-    
     tracing_ingress_total_pkts++;
 
     // TODO(antonin): only update these if swapping actually happened?
     Parser* parser = this->get_parser("parser");
     Pipeline* ingress_mau = this->get_pipeline("ingress");
 
-    phv = packet->get_phv();
+    PHV* phv = packet->get_phv();
 
     port_t ingress_port = packet->get_ingress_port();
     (void)ingress_port;
 
-#ifdef BMNANOMSG_ON
-    BMLOG_DEBUG_PKT(*packet, "Processing packet received on port {}",
-        ingress_port);
-#endif
-
-    auto ingress_packet_size = packet->get_register(RegisterAccess::PACKET_LENGTH_REG_IDX);
-
-    /* This looks like it comes out of the blue. However this is needed for
-        ingress cloning. The parser updates the buffer state (pops the parsed
-        headers) to make the deparser's job easier (the same buffer is
-        re-used). But for ingress cloning, the original packet is needed. This
-        kind of looks hacky though. Maybe a better solution would be to have the
-        parser leave the buffer unchanged, and move the pop logic to the
-        deparser. TODO? */
-    const bm::Packet::buffer_state_t packet_in_state = packet->save_buffer_state();
     parser->parse(packet.get());
 
     if (phv->has_field("standard_metadata.parser_error")) {
@@ -919,118 +878,9 @@ void P4Model::ingress_thread()
     Field& f_egress_spec = phv->get_field("standard_metadata.egress_spec");
     port_t egress_spec = f_egress_spec.get_uint();
 
-    auto clone_mirror_session_id = RegisterAccess::get_clone_mirror_session_id(packet.get());
-    auto clone_field_list = RegisterAccess::get_clone_field_list(packet.get());
-
-    int learn_id = RegisterAccess::get_lf_field_list(packet.get());
-    unsigned int mgid = 0u;
-
-    // detect mcast support, if this is true we assume that other fields needed
-    // for mcast are also defined
-    if (phv->has_field("intrinsic_metadata.mcast_grp")) {
-        Field& f_mgid = phv->get_field("intrinsic_metadata.mcast_grp");
-        mgid = f_mgid.get_uint();
-    }
-
-    // INGRESS CLONING
-    if (clone_mirror_session_id) {
-#ifdef BMNANOMSG_ON
-        BMLOG_DEBUG_PKT(*packet, "Cloning packet at ingress");
-#endif
-    RegisterAccess::set_clone_mirror_session_id(packet.get(), 0);
-    RegisterAccess::set_clone_field_list(packet.get(), 0);
-    MirroringSessionConfig config;
-    // Extract the part of clone_mirror_session_id that contains the
-    // actual session id.
-    clone_mirror_session_id &= RegisterAccess::MIRROR_SESSION_ID_MASK;
-    bool is_session_configured = mirroring_get_session(
-        static_cast<mirror_id_t>(clone_mirror_session_id), &config);
-    if (is_session_configured) {
-        const bm::Packet::buffer_state_t packet_out_state = packet->save_buffer_state();
-        packet->restore_buffer_state(packet_in_state);
-        p4object_id_t field_list_id = clone_field_list;
-        std::unique_ptr<bm::Packet> packet_copy = packet->clone_no_phv_ptr();
-        RegisterAccess::clear_all(packet_copy.get());
-        packet_copy->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX,
-            ingress_packet_size);
-        // we need to parse again
-        // the alternative would be to pay the (huge) price of PHV copy for
-        // every ingress packet
-        parser->parse(packet_copy.get());
-        copy_field_list_and_set_type(packet, packet_copy,
-            PKT_INSTANCE_TYPE_INGRESS_CLONE,
-            field_list_id);
-        if (config.mgid_valid) {
-#ifdef BMNANOMSG_ON
-            BMLOG_DEBUG_PKT(*packet, "Cloning packet to MGID {}", config.mgid);
-#endif
-            multicast(packet_copy.get(), config.mgid);
-        }
-        if (config.egress_port_valid) {
-#ifdef BMNANOMSG_ON
-            BMLOG_DEBUG_PKT(*packet, "Cloning packet to egress port {}",
-                config.egress_port);
-#endif
-            enqueue(config.egress_port, std::move(packet_copy));
-        }
-        packet->restore_buffer_state(packet_out_state);
-    }
-    }
-
-    // LEARNING
-    if (learn_id > 0) {
-        get_learn_engine()->learn(learn_id, *packet.get());
-    }
-
-    // RESUBMIT
-    auto resubmit_flag = RegisterAccess::get_resubmit_flag(packet.get());
-    if (resubmit_flag) {
-#ifdef BMNANOMSG_ON
-        BMLOG_DEBUG_PKT(*packet, "Resubmitting packet");
-#endif
-        // get the packet ready for being parsed again at the beginning of
-        // ingress
-        packet->restore_buffer_state(packet_in_state);
-        p4object_id_t field_list_id = resubmit_flag;
-        RegisterAccess::set_resubmit_flag(packet.get(), 0);
-        // TODO(antonin): a copy is not needed here, but I don't yet have an
-        // optimized way of doing this
-        std::unique_ptr<bm::Packet> packet_copy = packet->clone_no_phv_ptr();
-        PHV* phv_copy = packet_copy->get_phv();
-        copy_field_list_and_set_type(packet, packet_copy,
-            PKT_INSTANCE_TYPE_RESUBMIT,
-            field_list_id);
-        RegisterAccess::clear_all(packet_copy.get());
-        packet_copy->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX,
-            ingress_packet_size);
-        phv_copy->get_field("standard_metadata.packet_length")
-            .set(ingress_packet_size);
-        input_buffer->push_front(
-            InputBuffer::PacketType::RESUBMIT, std::move(packet_copy));
-        return;
-    }
-
-    // MULTICAST
-    if (mgid != 0) {
-#ifdef BMNANOMSG_ON
-        BMLOG_DEBUG_PKT(*packet, "Multicast requested for packet");
-#endif
-        auto& f_instance_type = phv->get_field("standard_metadata.instance_type");
-        f_instance_type.set(PKT_INSTANCE_TYPE_REPLICATION);
-        multicast(packet.get(), mgid);
-        // when doing multicast, we discard the original packet
-        return;
-    }
-
     port_t egress_port = egress_spec;
-#ifdef BMNANOMSG_ON
-    BMLOG_DEBUG_PKT(*packet, "Egress port is {}", egress_port);
-#endif
     if (egress_port == drop_port) { // drop packet
         tracing_ingress_drop++;
-#ifdef BMNANOMSG_ON
-        BMLOG_DEBUG_PKT(*packet, "Dropping packet at the end of ingress");
-#endif
         return;
     }
     auto& f_instance_type = phv->get_field("standard_metadata.instance_type");
@@ -1144,92 +994,14 @@ void P4Model::egress_thread(size_t worker_id)
 
     egress_mau->apply(packet.get());
 
-    auto clone_mirror_session_id = RegisterAccess::get_clone_mirror_session_id(packet.get());
-    auto clone_field_list = RegisterAccess::get_clone_field_list(packet.get());
-
-    // EGRESS CLONING
-    if (clone_mirror_session_id) {
-#ifdef BMNANOMSG_ON
-        BMLOG_DEBUG_PKT(*packet, "Cloning packet at egress");  
-#endif
-        RegisterAccess::set_clone_mirror_session_id(packet.get(), 0);
-        RegisterAccess::set_clone_field_list(packet.get(), 0);
-        MirroringSessionConfig config;
-        // Extract the part of clone_mirror_session_id that contains the
-        // actual session id.
-        clone_mirror_session_id &= RegisterAccess::MIRROR_SESSION_ID_MASK;
-        bool is_session_configured = mirroring_get_session(
-            static_cast<mirror_id_t>(clone_mirror_session_id), &config);
-        if (is_session_configured) {
-            p4object_id_t field_list_id = clone_field_list;
-            std::unique_ptr<bm::Packet> packet_copy = packet->clone_with_phv_reset_metadata_ptr();
-            PHV* phv_copy = packet_copy->get_phv();
-            FieldList* field_list = this->get_field_list(field_list_id);
-            field_list->copy_fields_between_phvs(phv_copy, phv);
-            phv_copy->get_field("standard_metadata.instance_type")
-                .set(PKT_INSTANCE_TYPE_EGRESS_CLONE);
-            auto packet_size = packet->get_register(RegisterAccess::PACKET_LENGTH_REG_IDX);
-            RegisterAccess::clear_all(packet_copy.get());
-            packet_copy->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX,
-                packet_size);
-            if (config.mgid_valid) {
-#ifdef BMNANOMSG_ON
-                BMLOG_DEBUG_PKT(*packet, "Cloning packet to MGID {}", config.mgid);
-#endif
-                multicast(packet_copy.get(), config.mgid);
-            }
-            if (config.egress_port_valid) {
-#ifdef BMNANOMSG_ON
-                BMLOG_DEBUG_PKT(*packet, "Cloning packet to egress port {}",
-                    config.egress_port);
-#endif
-                enqueue(config.egress_port, std::move(packet_copy));
-            }
-        }
-    }
-
     // TODO(antonin): should not be done like this in egress pipeline
     port_t egress_spec = f_egress_spec.get_uint();
     if (egress_spec == drop_port) { // drop packet
         tracing_egress_drop++;
-#ifdef BMNANOMSG_ON
-        BMLOG_DEBUG_PKT(*packet, "Dropping packet at the end of egress");
-#endif
         return;
     }
 
     deparser->deparse(packet.get());
-
-    // RECIRCULATE
-    auto recirculate_flag = RegisterAccess::get_recirculate_flag(packet.get());
-    if (recirculate_flag) {
-#ifdef BMNANOMSG_ON
-        BMLOG_DEBUG_PKT(*packet, "Recirculating packet");
-#endif
-        p4object_id_t field_list_id = recirculate_flag;
-        RegisterAccess::set_recirculate_flag(packet.get(), 0);
-        FieldList* field_list = this->get_field_list(field_list_id);
-        // TODO(antonin): just like for resubmit, there is no need for a copy
-        // here, but it is more convenient for this first prototype
-        std::unique_ptr<bm::Packet> packet_copy = packet->clone_no_phv_ptr();
-        PHV* phv_copy = packet_copy->get_phv();
-        phv_copy->reset_metadata();
-        field_list->copy_fields_between_phvs(phv_copy, phv);
-        phv_copy->get_field("standard_metadata.instance_type")
-            .set(PKT_INSTANCE_TYPE_RECIRC);
-        size_t packet_size = packet_copy->get_data_size();
-        RegisterAccess::clear_all(packet_copy.get());
-        packet_copy->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX,
-            packet_size);
-        phv_copy->get_field("standard_metadata.packet_length").set(packet_size);
-        // TODO(antonin): really it may be better to create a new packet here or
-        // to fold this functionality into the Packet class?
-        packet_copy->set_ingress_length(packet_size);
-        input_buffer->push_front(
-            InputBuffer::PacketType::RECIRCULATE, std::move(packet_copy));
-        return;
-    }
-
     output_buffer.push_front(std::move(packet));
 }
 
@@ -1258,9 +1030,6 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
         ns3Length, bm::PacketBuffer(ns3Length + 512, (char*)ns3Buffer, ns3Length));
     delete[] ns3Buffer;
 
-#ifdef BMNANOMSG_ON
-    BMELOG(packet_in, *packet);
-#endif
     if (packet) {
 
         tracing_total_in_pkts++;
@@ -1337,8 +1106,7 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             std::cout << "tag set from ns3 -> bmv2 failed." << std::endl;
         }
 
-        input_buffer->push_front(
-            InputBuffer::PacketType::NORMAL, std::move(packet));
+        this->ingress_pipeline(std::move(packet));
         
         if (P4GlobalVar::ns3_p4_tracing_dalay_sim){
             if (p4_switch_ID == 1){
@@ -1364,26 +1132,6 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     return -1;
 }
 
-void
-P4Model::RunIngressTimerEvent ()
-{
-    // NS_LOG_FUNCTION (this);
-    // NS_LOG_INFO ("Executing timer event for Ingress_thread");
-    size_t size = input_buffer->get_size();
-    if (size > 0) {
-        this->ingress_thread();
-    }
-    if (size > 10) {
-        // Reschedule timer event
-        m_ingressTimerEvent = Simulator::Schedule (Time("100us"), &P4Model::RunIngressTimerEvent, this);
-    }
-    else {
-        // Reschedule timer event
-        m_ingressTimerEvent = Simulator::Schedule (Time("1ms"), &P4Model::RunIngressTimerEvent, this);
-    }
-
-    
-}
 
 void
 P4Model::RunEgressTimerEvent ()

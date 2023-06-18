@@ -461,8 +461,6 @@ class P4Model : public Switch {
 		std::map<int64_t, DelayJitterEstimationTimestampTag> tag_map;
 		
 		// time event for thread local
-		EventId m_ingressTimerEvent;              					//!< The timer event ID [Ingress]
-		Time m_ingressTimeReference;        	  					//!< Desired time between timer event triggers
 		size_t worker_id;											//!< worker_id = threads_id, here only one
 		EventId m_egressTimerEvent;              					//!< The timer event ID [Egress]
 		Time m_egressTimeReference;        	  						//!< Desired time between timer event triggers
@@ -584,11 +582,10 @@ class P4Model : public Switch {
 		};
 
 	private:
-		void ingress_thread();
+   void ingress_pipeline(std::unique_ptr<bm::Packet> packet);
 		void egress_thread(size_t worker_id);
 		void transmit_thread();
 
-		void RunIngressTimerEvent ();
 		void RunEgressTimerEvent ();
 		void RunTransmitTimerEvent ();
 
