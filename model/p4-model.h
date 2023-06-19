@@ -462,10 +462,10 @@ class P4Model : public Switch {
 		
 		// time event for thread local
 		size_t worker_id;											//!< worker_id = threads_id, here only one
-		EventId m_egressTimerEvent;              					//!< The timer event ID [Egress]
-		Time m_egressTimeReference;        	  						//!< Desired time between timer event triggers
-		EventId m_transmitTimerEvent;              					//!< The timer event ID [Transfer]
-		Time m_transmitTimeReference;        	  					//!< Desired time between timer event triggers
+		// EventId m_egressTimerEvent;              					//!< The timer event ID [Egress]
+		// Time m_egressTimeReference;        	  						//!< Desired time between timer event triggers
+		// EventId m_transmitTimerEvent;              					//!< The timer event ID [Transfer]
+		// Time m_transmitTimeReference;        	  					//!< Desired time between timer event triggers
 
     mutable std::mutex m_tag_queue_mutex;
 
@@ -582,14 +582,9 @@ class P4Model : public Switch {
 		};
 
 	private:
-   void ingress_pipeline(std::unique_ptr<bm::Packet> packet);
-		void egress_thread(size_t worker_id);
-		void transmit_thread();
-
-		void RunEgressTimerEvent ();
-		void RunTransmitTimerEvent ();
-
-		ts_res get_ts() const;
+    void ingress_pipeline(std::unique_ptr<bm::Packet> packet);
+    void egress_pipeline(std::unique_ptr<bm::Packet> packet, size_t worker_id, size_t port, size_t priority);
+    // current Remove transmit_thread. Just send out by NetDevice, the NetDeive can deal with transmit.
 
 		// TODO(antonin): switch to pass by value?
 		void enqueue(port_t egress_port, std::unique_ptr<bm::Packet> &&packet);
