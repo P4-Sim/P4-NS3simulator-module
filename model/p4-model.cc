@@ -199,7 +199,7 @@ public:
 
     void pop_back(std::unique_ptr<bm::Packet>* pItem)
     {
-        if (queue_hi.size() > 0 || queue_lo.size() > 0){
+        if (queue_hi.size() > 0 || queue_lo.size() > 0) {
             Lock lock(mutex);
             cvar_can_pop.wait(
                 lock, [this] { return (queue_hi.size() + queue_lo.size()) > 0; });
@@ -217,7 +217,7 @@ public:
             }
         }
     }
-    size_t get_size ()
+    size_t get_size()
     {
         return capacity_hi + capacity_lo;
     }
@@ -258,12 +258,12 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     : Switch(enable_swap)
     , drop_port(drop_port)
     , input_buffer(new InputBuffer(
-          1024 /* normal capacity */, 1024 /* resubmit/recirc capacity */))
+          10240 /* normal capacity */, 1024 /* resubmit/recirc capacity */))
     , nb_queues_per_port(nb_queues_per_port)
     , egress_buffers(nb_egress_threads,
           10240, EgressThreadMapper(nb_egress_threads),
           nb_queues_per_port)
-    , output_buffer(128)
+    , output_buffer(10240)
     ,
     // cannot use std::bind because of a clang bug
     // https://stackoverflow.com/questions/32030141/is-this-incorrect-use-of-stdbind-or-a-compiler-bug
@@ -298,9 +298,9 @@ P4Model::P4Model(P4NetDevice* netDevice, bool enable_swap,
     m_egressTimerEvent = EventId(); // default initial value
     m_transmitTimerEvent = EventId(); // default initial value
     // default time setting for event loop.
-    m_ingressTimeReference = Time("1ms");
-    m_egressTimeReference = Time("1ms");
-    m_transmitTimeReference = Time("1ms");
+    m_ingressTimeReference = Time("500us");
+    m_egressTimeReference = Time("900us"); // 1 / 1280 = 0.00078125 = 780 TCP // 900 UDP
+    m_transmitTimeReference = Time("500us");
 
     // ns3 settings init @mingyu
     address_num = 0;
@@ -468,7 +468,7 @@ int P4Model::receive_(port_t port_num, const char* buffer, int len)
 
 /**
  * @brief Multithread support in bmv2
- * 
+ *
  */
 void P4Model::start_and_return_()
 {
@@ -477,24 +477,21 @@ void P4Model::start_and_return_()
     // threads_.push_back(std::thread(&P4Model::ingress_thread, this));
 
     // start the ingress local thread
-    if (!m_ingressTimeReference.IsZero())
-    {
+    if (!m_ingressTimeReference.IsZero()) {
         // NS_LOG_INFO ("Scheduling initial timer event using m_ingressTimeReference = " << m_ingressTimeReference.GetNanoSeconds() << " ns");
-        m_ingressTimerEvent = Simulator::Schedule (m_ingressTimeReference, &P4Model::RunIngressTimerEvent, this);
+        m_ingressTimerEvent = Simulator::Schedule(m_ingressTimeReference, &P4Model::RunIngressTimerEvent, this);
     }
 
     // start the egress local thread
-    if (!m_egressTimeReference.IsZero())
-    {
+    if (!m_egressTimeReference.IsZero()) {
         // NS_LOG_INFO ("Scheduling initial timer event using m_egressTimeReference = " << m_egressTimeReference.GetNanoSeconds() << " ns");
-        m_egressTimerEvent = Simulator::Schedule (m_egressTimeReference, &P4Model::RunEgressTimerEvent, this);
+        m_egressTimerEvent = Simulator::Schedule(m_egressTimeReference, &P4Model::RunEgressTimerEvent, this);
     }
 
     // start the transmit local thread
-    if (!m_egressTimeReference.IsZero())
-    {
+    if (!m_egressTimeReference.IsZero()) {
         // NS_LOG_INFO ("Scheduling initial timer event using m_egressTimeReference = " << m_egressTimeReference.GetNanoSeconds() << " ns");
-        m_transmitTimerEvent = Simulator::Schedule (m_transmitTimeReference, &P4Model::RunTransmitTimerEvent, this);
+        m_transmitTimerEvent = Simulator::Schedule(m_transmitTimeReference, &P4Model::RunTransmitTimerEvent, this);
     }
 
     // for (size_t i = 0; i < nb_egress_threads; i++) {
@@ -590,8 +587,8 @@ int P4Model::set_all_egress_queue_rates(const uint64_t rate_pps)
 }
 
 void P4Model::transmit_thread()
-{   
-    
+{
+
     std::unique_ptr<bm::Packet> packet;
 
     if (output_buffer.size() == 0) {
@@ -604,12 +601,12 @@ void P4Model::transmit_thread()
     BMELOG(packet_out, *packet);
     BMLOG_DEBUG_PKT(*packet, "Transmitting packet of size {} out of port {}",
         packet->get_data_size(), packet->get_egress_port());
-#endif  
+#endif
 
-    m_re_pktID++;  // the packet number should be
+    m_re_pktID++; // the packet number should be
 
     PHV* phv = packet->get_phv();
-    
+
     // ==================Take info from the p4 bm::packet==================
     uint16_t protocol;
     if (phv->has_field(P4GlobalVar::ns3i_protocol_1)) {
@@ -620,7 +617,7 @@ void P4Model::transmit_thread()
         std::cout << "No protocol for sending ns-3 packet!" << std::endl;
         protocol = 0;
     }
-    
+
     int des_idx = 0;
     if (phv->has_field(P4GlobalVar::ns3i_destination_1)) {
         des_idx = phv->get_field(P4GlobalVar::ns3i_destination_1).get_int();
@@ -630,7 +627,7 @@ void P4Model::transmit_thread()
         std::cout << "No destnation for sending ns-3 packet!" << std::endl;
         des_idx = 0;
     }
-        
+
     int port = 0;
     // take the port info into p4, here the port using egress_port
     if (phv->has_field("standard_metadata.egress_port")) {
@@ -638,11 +635,11 @@ void P4Model::transmit_thread()
     }
 
     // tranfer bm::packet to ns3::packet
-    void *bm2Buffer = packet.get()->data();
+    void* bm2Buffer = packet.get()->data();
     size_t bm2Length = packet.get()->get_data_size();
-    ns3::Packet ns3Packet((uint8_t*)bm2Buffer,bm2Length);
+    ns3::Packet ns3Packet((uint8_t*)bm2Buffer, bm2Length);
 
-    if (P4GlobalVar::ns3_p4_tracing_dalay_ByteTag){
+    if (P4GlobalVar::ns3_p4_tracing_dalay_ByteTag) {
         // add the ByteTag of the ns3::packet (for tracing delay etc)
         int64_t src_pkt_id = -1;
         if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
@@ -653,11 +650,11 @@ void P4Model::transmit_thread()
             std::cout << "tag set from ns3 -> bmv2 recover failed." << std::endl;
         }
         m_tag_queue_mutex.lock();
-        
+
         if (tag_map.find(src_pkt_id) != tag_map.end()) {
             DelayJitterEstimationTimestampTag rdjtag = tag_map.find(src_pkt_id)->second;
             ns3Packet.AddByteTag(rdjtag);
-            tag_map.erase (src_pkt_id); // Clear the item to avoid excessive map
+            tag_map.erase(src_pkt_id); // Clear the item to avoid excessive map
         }
         // else {
         //     std::cout << p4_switch_ID <<" No tag for sending out with id:" << src_pkt_id << std::endl;
@@ -670,8 +667,8 @@ void P4Model::transmit_thread()
     tracing_total_out_pkts++;
     m_pNetDevice->SendNs3Packet(packetOut, port, protocol, destination_list[des_idx]);
 
-    if (P4GlobalVar::ns3_p4_tracing_dalay_sim){
-        if (p4_switch_ID == 1){
+    if (P4GlobalVar::ns3_p4_tracing_dalay_sim) {
+        if (p4_switch_ID == 1) {
             int priority = -1;
             PHV* phv = packet->get_phv();
             if (phv->has_field("standard_metadata.priority")) {
@@ -690,12 +687,11 @@ void P4Model::transmit_thread()
             std::string filename = "./scratch-data/p4-codel/sim_delay_out_switch_1.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
-                sim_delay_file <<"SimOut," << src_pkt_id << "," << 
-                    priority << "," << Simulator::Now() << std::endl;
+                sim_delay_file << "SimOut," << src_pkt_id << "," << priority << "," << Simulator::Now() << std::endl;
             }
             sim_delay_file.close();
         }
-        if (p4_switch_ID == 2){
+        if (p4_switch_ID == 2) {
             int priority = -1;
             PHV* phv = packet->get_phv();
             if (phv->has_field("standard_metadata.priority")) {
@@ -714,44 +710,44 @@ void P4Model::transmit_thread()
             std::string filename = "./scratch-data/p4-codel/sim_delay_out_switch_2.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
-                sim_delay_file <<"SimOut," << src_pkt_id << "," << 
-                    priority << "," << Simulator::Now() << std::endl;
+                sim_delay_file << "SimOut," << src_pkt_id << "," << priority << "," << Simulator::Now() << std::endl;
             }
             sim_delay_file.close();
         }
     }
 
-    if (P4GlobalVar::ns3_p4_tracing_control){
-        if (tracing_control_loop_num < 100){
+    if (P4GlobalVar::ns3_p4_tracing_control) {
+        if (tracing_control_loop_num < 100) {
             tracing_control_loop_num++;
-        }
-        else{
+        } else {
             tracing_control_loop_num = 0;
             // one hundred pkts write once.
             if (p4_switch_ID == 1) {
                 std::string filename = "./scratch-data/p4-codel/control_tracing_1.csv";
                 std::ofstream dropFile(filename, std::ios::app);
                 if (dropFile.is_open()) {
-                    dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
-                    tracing_ingress_total_pkts << "," << tracing_ingress_drop << "," <<
-                    tracing_egress_total_pkts << "," << tracing_egress_drop << "," <<
-                    Simulator::Now () << std::endl;
+                    int x0 = egress_buffers.size(0);
+                    int x1 = egress_buffers.size(1);
+                    int x2 = egress_buffers.size(2);
+                    int x3 = egress_buffers.size(3);
+                    int x4 = egress_buffers.size(4);
+                    int x5 = egress_buffers.size(5);
+                    int x6 = egress_buffers.size(6);
+                    int x7 = egress_buffers.size(7);
+                    dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," << tracing_ingress_total_pkts << "," << tracing_ingress_drop << "," << tracing_egress_total_pkts << "," << tracing_egress_drop << "," << x0 << "," << x1 << "," << x2 << "," << x3 << "," << x4 << "," << x5 << "," << x6 << "," << x7 << "," << Simulator::Now() << std::endl;
                 }
                 dropFile.close();
             }
-            // if (p4_switch_ID == 2) {
-            //     std::string filename = "./scratch-data/p4-codel/control_tracing_2.csv";
-            //     std::ofstream dropFile(filename, std::ios::app);
-            //     if (dropFile.is_open()) {
-            //         dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," <<
-            //         tracing_ingress_total_pkts << "," <<tracing_ingress_drop << "," <<
-            //         tracing_egress_total_pkts << "," <<tracing_egress_drop << "," <<
-            //         Simulator::Now () << std::endl;
-            //     }
-            //     dropFile.close();
-            // }
+            if (p4_switch_ID == 2) {
+                std::string filename = "./scratch-data/p4-codel/control_tracing_2.csv";
+                std::ofstream dropFile(filename, std::ios::app);
+                if (dropFile.is_open()) {
+                    dropFile << tracing_total_in_pkts << "," << tracing_total_out_pkts << "," << tracing_ingress_total_pkts << "," << tracing_ingress_drop << "," << tracing_egress_total_pkts << "," << tracing_egress_drop << "," << Simulator::Now() << std::endl;
+                }
+                dropFile.close();
+            }
         }
-    }// P4GlobalVar::ns3_p4_tracing_control
+    } // P4GlobalVar::ns3_p4_tracing_control
 }
 
 void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
@@ -776,9 +772,9 @@ void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
     egress_buffers.push_front(
         egress_port, nb_queues_per_port - 1 - priority,
         std::move(packet));
-    
-    if (P4GlobalVar::ns3_p4_tracing_dalay_sim){
-        if (p4_switch_ID == 1){ 
+
+    if (P4GlobalVar::ns3_p4_tracing_dalay_sim) {
+        if (p4_switch_ID == 1) {
             int64_t src_pkt_id = -1;
             if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
                 src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
@@ -791,11 +787,11 @@ void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
             std::string filename = "./scratch-data/p4-codel/sim_in_queue_1.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
-                sim_delay_file <<"SimQIn," << src_pkt_id << "," << Simulator::Now()  << std::endl;
+                sim_delay_file << "SimQIn," << src_pkt_id << "," << Simulator::Now() << std::endl;
             }
             sim_delay_file.close();
         }
-        if (p4_switch_ID == 2){ 
+        if (p4_switch_ID == 2) {
             int64_t src_pkt_id = -1;
             if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
                 src_pkt_id = phv->get_field(P4GlobalVar::ns3i_pkts_id_1).get_uint64();
@@ -808,7 +804,7 @@ void P4Model::enqueue(port_t egress_port, std::unique_ptr<bm::Packet>&& packet)
             std::string filename = "./scratch-data/p4-codel/sim_in_queue_2.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
-                sim_delay_file <<"SimQIn," << src_pkt_id << "," << Simulator::Now()  << std::endl;
+                sim_delay_file << "SimQIn," << src_pkt_id << "," << Simulator::Now() << std::endl;
             }
             sim_delay_file.close();
         }
@@ -870,12 +866,12 @@ void P4Model::multicast(bm::Packet* packet, unsigned int mgid)
 void P4Model::ingress_thread()
 {
     PHV* phv;
-    
+
     std::unique_ptr<bm::Packet> packet;
     input_buffer->pop_back(&packet);
     if (packet == nullptr)
         return;
-    
+
     tracing_ingress_total_pkts++;
 
     // TODO(antonin): only update these if swapping actually happened?
@@ -937,44 +933,44 @@ void P4Model::ingress_thread()
 #ifdef BMNANOMSG_ON
         BMLOG_DEBUG_PKT(*packet, "Cloning packet at ingress");
 #endif
-    RegisterAccess::set_clone_mirror_session_id(packet.get(), 0);
-    RegisterAccess::set_clone_field_list(packet.get(), 0);
-    MirroringSessionConfig config;
-    // Extract the part of clone_mirror_session_id that contains the
-    // actual session id.
-    clone_mirror_session_id &= RegisterAccess::MIRROR_SESSION_ID_MASK;
-    bool is_session_configured = mirroring_get_session(
-        static_cast<mirror_id_t>(clone_mirror_session_id), &config);
-    if (is_session_configured) {
-        const bm::Packet::buffer_state_t packet_out_state = packet->save_buffer_state();
-        packet->restore_buffer_state(packet_in_state);
-        p4object_id_t field_list_id = clone_field_list;
-        std::unique_ptr<bm::Packet> packet_copy = packet->clone_no_phv_ptr();
-        RegisterAccess::clear_all(packet_copy.get());
-        packet_copy->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX,
-            ingress_packet_size);
-        // we need to parse again
-        // the alternative would be to pay the (huge) price of PHV copy for
-        // every ingress packet
-        parser->parse(packet_copy.get());
-        copy_field_list_and_set_type(packet, packet_copy,
-            PKT_INSTANCE_TYPE_INGRESS_CLONE,
-            field_list_id);
-        if (config.mgid_valid) {
+        RegisterAccess::set_clone_mirror_session_id(packet.get(), 0);
+        RegisterAccess::set_clone_field_list(packet.get(), 0);
+        MirroringSessionConfig config;
+        // Extract the part of clone_mirror_session_id that contains the
+        // actual session id.
+        clone_mirror_session_id &= RegisterAccess::MIRROR_SESSION_ID_MASK;
+        bool is_session_configured = mirroring_get_session(
+            static_cast<mirror_id_t>(clone_mirror_session_id), &config);
+        if (is_session_configured) {
+            const bm::Packet::buffer_state_t packet_out_state = packet->save_buffer_state();
+            packet->restore_buffer_state(packet_in_state);
+            p4object_id_t field_list_id = clone_field_list;
+            std::unique_ptr<bm::Packet> packet_copy = packet->clone_no_phv_ptr();
+            RegisterAccess::clear_all(packet_copy.get());
+            packet_copy->set_register(RegisterAccess::PACKET_LENGTH_REG_IDX,
+                ingress_packet_size);
+            // we need to parse again
+            // the alternative would be to pay the (huge) price of PHV copy for
+            // every ingress packet
+            parser->parse(packet_copy.get());
+            copy_field_list_and_set_type(packet, packet_copy,
+                PKT_INSTANCE_TYPE_INGRESS_CLONE,
+                field_list_id);
+            if (config.mgid_valid) {
 #ifdef BMNANOMSG_ON
-            BMLOG_DEBUG_PKT(*packet, "Cloning packet to MGID {}", config.mgid);
+                BMLOG_DEBUG_PKT(*packet, "Cloning packet to MGID {}", config.mgid);
 #endif
-            multicast(packet_copy.get(), config.mgid);
-        }
-        if (config.egress_port_valid) {
+                multicast(packet_copy.get(), config.mgid);
+            }
+            if (config.egress_port_valid) {
 #ifdef BMNANOMSG_ON
-            BMLOG_DEBUG_PKT(*packet, "Cloning packet to egress port {}",
-                config.egress_port);
+                BMLOG_DEBUG_PKT(*packet, "Cloning packet to egress port {}",
+                    config.egress_port);
 #endif
-            enqueue(config.egress_port, std::move(packet_copy));
+                enqueue(config.egress_port, std::move(packet_copy));
+            }
+            packet->restore_buffer_state(packet_out_state);
         }
-        packet->restore_buffer_state(packet_out_state);
-    }
     }
 
     // LEARNING
@@ -1046,7 +1042,7 @@ void P4Model::egress_thread(size_t worker_id)
     std::unique_ptr<bm::Packet> packet;
     size_t port;
     size_t priority;
-    
+
     bool none_flag = true;
     int queue_number = default_nb_queues_per_port;
     for (int i = 0; i < queue_number; i++) {
@@ -1070,7 +1066,7 @@ void P4Model::egress_thread(size_t worker_id)
     phv = packet->get_phv();
 
     if (P4GlobalVar::ns3_p4_tracing_dalay_sim) {
-        if (p4_switch_ID == 1){
+        if (p4_switch_ID == 1) {
             int priority = -1;
             PHV* phv = packet->get_phv();
             if (phv->has_field("standard_metadata.priority")) {
@@ -1089,12 +1085,11 @@ void P4Model::egress_thread(size_t worker_id)
             std::string filename = "./scratch-data/p4-codel/sim_out_queue_1.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
-                sim_delay_file <<"SimQOut," << src_pkt_id << "," << 
-                    priority << "," << Simulator::Now() << std::endl;
+                sim_delay_file << "SimQOut," << src_pkt_id << "," << priority << "," << Simulator::Now() << std::endl;
             }
             sim_delay_file.close();
         }
-        if (p4_switch_ID == 2){
+        if (p4_switch_ID == 2) {
             int priority = -1;
             PHV* phv = packet->get_phv();
             if (phv->has_field("standard_metadata.priority")) {
@@ -1113,12 +1108,11 @@ void P4Model::egress_thread(size_t worker_id)
             std::string filename = "./scratch-data/p4-codel/sim_out_queue_2.csv";
             std::ofstream sim_delay_file(filename, std::ios::app);
             if (sim_delay_file.is_open()) {
-                sim_delay_file <<"SimQOut," << src_pkt_id << "," << 
-                    priority << "," << Simulator::Now() << std::endl;
+                sim_delay_file << "SimQOut," << src_pkt_id << "," << priority << "," << Simulator::Now() << std::endl;
             }
             sim_delay_file.close();
         }
-    }        
+    }
     if (phv->has_field("intrinsic_metadata.egress_global_timestamp")) {
         phv->get_field("intrinsic_metadata.egress_global_timestamp")
             .set(Simulator::Now().GetMicroSeconds());
@@ -1134,7 +1128,7 @@ void P4Model::egress_thread(size_t worker_id)
             qid_f.set(nb_queues_per_port - 1 - priority);
         }
     }
- 
+
     phv->get_field("standard_metadata.egress_port").set(port);
 
     Field& f_egress_spec = phv->get_field("standard_metadata.egress_spec");
@@ -1150,7 +1144,7 @@ void P4Model::egress_thread(size_t worker_id)
     // EGRESS CLONING
     if (clone_mirror_session_id) {
 #ifdef BMNANOMSG_ON
-        BMLOG_DEBUG_PKT(*packet, "Cloning packet at egress");  
+        BMLOG_DEBUG_PKT(*packet, "Cloning packet at egress");
 #endif
         RegisterAccess::set_clone_mirror_session_id(packet.get(), 0);
         RegisterAccess::set_clone_field_list(packet.get(), 0);
@@ -1241,16 +1235,16 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     uint8_t* ns3Buffer = new uint8_t[ns3Length];
     packetIn->CopyData(ns3Buffer, ns3Length);
 
-	if (P4GlobalVar::ns3_p4_tracing_dalay_ByteTag){
+    if (P4GlobalVar::ns3_p4_tracing_dalay_ByteTag) {
         // parse the ByteTag in ns3::packet (for tracing delay etc)
         DelayJitterEstimationTimestampTag djtag;
         if (packetIn->FindFirstMatchingByteTag(djtag)) {
             m_tag_queue_mutex.lock();
-            tag_map.insert (std::pair<int64_t, DelayJitterEstimationTimestampTag>(m_pktID, djtag));
+            tag_map.insert(std::pair<int64_t, DelayJitterEstimationTimestampTag>(m_pktID, djtag));
             m_tag_queue_mutex.unlock();
         }
     }
-    
+
     // we limit the packet buffer to original size + 512 bytes, which means we
     // cannot add more than 512 bytes of header data to the packet, which should
     // be more than enough
@@ -1288,15 +1282,15 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
             phv->get_field("intrinsic_metadata.ingress_global_timestamp")
                 .set(Simulator::Now().GetMicroSeconds());
         }
-  
-        /* ==========================new==================================================== 
+
+        /* ==========================new====================================================
         Record the ns3::protocol, ns3::destinatio into bm::packet, this is
         useful, because after the 3 buffers and Ingress Egress loops, or resubmit/
         recirculaiton etc, maybe bm::packet will get a different order. So I think
         this situation can only be solved by adding additional information to
         the bm::package. @mingyu
         */
-        
+
         //==========================protocol==========================
         if (phv->has_field(P4GlobalVar::ns3i_protocol_1)) {
             phv->get_field(P4GlobalVar::ns3i_protocol_1).set(protocol);
@@ -1308,11 +1302,10 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 
         // ==========================address==========================
         int index_dest_address = 0;
-        if (std::find(destination_list.begin(), destination_list.end(), destination) == destination_list.end()){
+        if (std::find(destination_list.begin(), destination_list.end(), destination) == destination_list.end()) {
             destination_list.push_back(destination);
             index_dest_address = destination_list.size() - 1;
-        }
-        else{
+        } else {
             auto it = std::find(destination_list.begin(), destination_list.end(), destination);
             index_dest_address = std::distance(destination_list.begin(), it);
         }
@@ -1330,30 +1323,30 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
 
         // ==========================packet id==========================
         if (phv->has_field(P4GlobalVar::ns3i_pkts_id_1)) {
-            phv->get_field(P4GlobalVar::ns3i_pkts_id_1).set(m_pktID-1);
+            phv->get_field(P4GlobalVar::ns3i_pkts_id_1).set(m_pktID - 1);
         } else if (phv->has_field(P4GlobalVar::ns3i_pkts_id_2)) {
-            phv->get_field(P4GlobalVar::ns3i_pkts_id_2).set(m_pktID-1);
+            phv->get_field(P4GlobalVar::ns3i_pkts_id_2).set(m_pktID - 1);
         } else {
             std::cout << "tag set from ns3 -> bmv2 failed." << std::endl;
         }
 
         input_buffer->push_front(
             InputBuffer::PacketType::NORMAL, std::move(packet));
-        
-        if (P4GlobalVar::ns3_p4_tracing_dalay_sim){
-            if (p4_switch_ID == 1){
+
+        if (P4GlobalVar::ns3_p4_tracing_dalay_sim) {
+            if (p4_switch_ID == 1) {
                 std::string filename = "./scratch-data/p4-codel/sim_delay_in_switch_1.csv";
                 std::ofstream sim_delay_file(filename, std::ios::app);
                 if (sim_delay_file.is_open()) {
-                    sim_delay_file <<"SimIn," << m_pktID-1 << "," << Simulator::Now()  << std::endl;
+                    sim_delay_file << "SimIn," << m_pktID - 1 << "," << Simulator::Now() << std::endl;
                 }
                 sim_delay_file.close();
-            }  
-            if (p4_switch_ID == 2){
+            }
+            if (p4_switch_ID == 2) {
                 std::string filename = "./scratch-data/p4-codel/sim_delay_in_switch_2.csv";
                 std::ofstream sim_delay_file(filename, std::ios::app);
                 if (sim_delay_file.is_open()) {
-                    sim_delay_file <<"SimIn," << m_pktID-1 << "," << Simulator::Now()  << std::endl;
+                    sim_delay_file << "SimIn," << m_pktID - 1 << "," << Simulator::Now() << std::endl;
                 }
                 sim_delay_file.close();
             }
@@ -1364,8 +1357,7 @@ int P4Model::ReceivePacket(Ptr<ns3::Packet> packetIn, int inPort,
     return -1;
 }
 
-void
-P4Model::RunIngressTimerEvent ()
+void P4Model::RunIngressTimerEvent()
 {
     // NS_LOG_FUNCTION (this);
     // NS_LOG_INFO ("Executing timer event for Ingress_thread");
@@ -1375,38 +1367,33 @@ P4Model::RunIngressTimerEvent ()
     }
     if (size > 10) {
         // Reschedule timer event
-        m_ingressTimerEvent = Simulator::Schedule (Time("100us"), &P4Model::RunIngressTimerEvent, this);
-    }
-    else {
+        m_ingressTimerEvent = Simulator::Schedule(Time("100us"), &P4Model::RunIngressTimerEvent, this);
+    } else {
         // Reschedule timer event
-        m_ingressTimerEvent = Simulator::Schedule (Time("1ms"), &P4Model::RunIngressTimerEvent, this);
+        m_ingressTimerEvent = Simulator::Schedule(Time("1ms"), &P4Model::RunIngressTimerEvent, this);
     }
-
-    
 }
 
-void
-P4Model::RunEgressTimerEvent ()
+void P4Model::RunEgressTimerEvent()
 {
     // NS_LOG_FUNCTION (this);
     // NS_LOG_INFO ("Executing timer event for Egress_thread");
-    
+
     this->egress_thread(worker_id);
 
     // Reschedule timer event
-    m_egressTimerEvent = Simulator::Schedule (m_egressTimeReference, &P4Model::RunEgressTimerEvent, this);
+    m_egressTimerEvent = Simulator::Schedule(m_egressTimeReference, &P4Model::RunEgressTimerEvent, this);
 }
 
-void
-P4Model::RunTransmitTimerEvent ()
+void P4Model::RunTransmitTimerEvent()
 {
     // NS_LOG_FUNCTION (this);
     // NS_LOG_INFO ("Executing timer event for Egress_thread");
-        
+
     this->transmit_thread();
 
     // Reschedule timer event
-    m_transmitTimerEvent = Simulator::Schedule (m_transmitTimeReference, &P4Model::RunTransmitTimerEvent, this);
+    m_transmitTimerEvent = Simulator::Schedule(m_transmitTimeReference, &P4Model::RunTransmitTimerEvent, this);
 }
 
 ts_res P4Model::get_ts() const

@@ -618,7 +618,7 @@ class P4Model : public Switch {
 		TransmitFn my_transmit_fn;
 		std::shared_ptr<McSimplePreLAG> pre;
 		std::chrono::high_resolution_clock::time_point start;
-		bool with_queueing_metadata{false};
+		bool with_queueing_metadata{true};
 		std::unique_ptr<MirroringSessions> mirroring_sessions;
 
 		int64_t m_pktID = 0;								//!< Packet ID
