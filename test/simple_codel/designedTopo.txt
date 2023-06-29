@@ -1,0 +1,10 @@
+2 6 7
+2 h 0 s 100Mbps 0.01ms
+3 h 0 s 100Mbps 0.01ms
+4 h 0 s 100Mbps 0.01ms
+0 s 1 s 5Mbps 0.01ms
+1 s 5 h 100Mbps 0.01ms
+1 s 6 h 100Mbps 0.01ms
+1 s 7 h 100Mbps 0.01ms
+0 SIMPLECODEL
+1 SIMPLECODEL

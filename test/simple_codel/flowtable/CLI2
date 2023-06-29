@@ -1,0 +1,38 @@
+table_set_default ipv4_nhop drop
+table_set_default arp_nhop drop
+table_set_default forward_table drop
+table_add ipv4_nhop set_ipv4_nhop 0x0a010001 => 0x0a010001
+table_add arp_nhop set_arp_nhop 0x0a010001 => 0x0a010001
+table_add forward_table set_port 0x0a010001 => 0x0
+table_add ipv4_nhop set_ipv4_nhop 0x0a010004 => 0x0a010004
+table_add arp_nhop set_arp_nhop 0x0a010004 => 0x0a010004
+table_add forward_table set_port 0x0a010004 => 0x1
+table_add ipv4_nhop set_ipv4_nhop 0x0a010005 => 0x0a010005
+table_add arp_nhop set_arp_nhop 0x0a010005 => 0x0a010005
+table_add forward_table set_port 0x0a010005 => 0x2
+table_add ipv4_nhop set_ipv4_nhop 0x0a010006 => 0x0a010006
+table_add arp_nhop set_arp_nhop 0x0a010006 => 0x0a010006
+table_add forward_table set_port 0x0a010006 => 0x3
+table_add ipv4_nhop set_ipv4_nhop 0x0a010002 => 0x0a010002
+table_add arp_nhop set_arp_nhop 0x0a010002 => 0x0a010002
+table_add forward_table set_port 0x0a010002 => 0x0
+table_add ipv4_nhop set_ipv4_nhop 0x0a010003 => 0x0a010003
+table_add arp_nhop set_arp_nhop 0x0a010003 => 0x0a010003
+table_add forward_table set_port 0x0a010003 => 0x0
+table_set_default t_codel_control_law a_codel_control_law 552
+table_add t_codel_control_law a_codel_control_law 0/17 => 781
+table_add t_codel_control_law a_codel_control_law 0/18 => 1104
+table_add t_codel_control_law a_codel_control_law 0/19 => 1562
+table_add t_codel_control_law a_codel_control_law 0/20 => 2209
+table_add t_codel_control_law a_codel_control_law 0/21 => 3125
+table_add t_codel_control_law a_codel_control_law 0/22 => 4419
+table_add t_codel_control_law a_codel_control_law 0/23 => 6250
+table_add t_codel_control_law a_codel_control_law 0/24 => 8838
+table_add t_codel_control_law a_codel_control_law 0/25 => 12500
+table_add t_codel_control_law a_codel_control_law 0/26 => 17677
+table_add t_codel_control_law a_codel_control_law 0/27 => 25000
+table_add t_codel_control_law a_codel_control_law 0/28 => 35355
+table_add t_codel_control_law a_codel_control_law 0/29 => 50000
+table_add t_codel_control_law a_codel_control_law 0/30 => 70710
+table_add t_codel_control_law a_codel_control_law 0/31 => 100000
+table_add t_codel_control_law a_codel_control_law 0/32 => 100000

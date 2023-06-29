@@ -1,0 +1,10 @@
+2 6 7
+2 h 0 s 1000Mbps 0.1ms
+3 h 0 s 1000Mbps 0.1ms
+4 h 0 s 1000Mbps 0.1ms
+0 s 1 s 50Mbps 0.1ms
+1 s 5 h 1000Mbps 0.1ms
+1 s 6 h 1000Mbps 0.1ms
+1 s 7 h 1000Mbps 0.1ms
+0 CODEL
+1 CODEL
