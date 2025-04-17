@@ -1,3 +1,5 @@
+⭐ Check the [P4sim](https://github.com/HapCommSys/p4sim) (new P4simulator) for ns-3. 
+
 P4-NS3 Simulator is a P4-driven network simulator aiming at combining P4, the state-of-the-art programmable data plane language and ns-3, one of the most popular network simulators. P4-NS3 Simulator is an open-source project under Apache License 2.0.
 
 ## Current branchs
